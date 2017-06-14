@@ -3,7 +3,6 @@ from setuptools import setup
 setup(
     name='karajan',
     version='0.0.1',
-    py_modules=['karajan'],
     url='https://github.com/wooga/bit.karajan',
     license='',
     author='Wooga Business Intelligence Team',
