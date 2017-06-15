@@ -72,7 +72,7 @@ class Conductor(object):
         return dag
 
     def _columns(self, table):
-        return {k: Column(k,self.conf['columns'][v]) for k,v in table.aggregated_columns.iteritems() }
+        return {k: Column(k, self.conf['columns'][v]) for k, v in table.aggregated_columns.iteritems()}
 
     def _agg_columns(self, table, params):
         cols = {}

@@ -6,7 +6,6 @@ from karajan.model import DeltaDependency, TrackingDependency, NothingDependency
 
 
 class BaseEngine(object):
-
     def init_operator(self, task_id, dag, table, columns):
         return DummyOperator(task_id=task_id, dag=dag)
 
@@ -36,7 +35,7 @@ class BaseEngine(object):
     def aggregation_operator(self, task_id, dag, table, column):
         return DummyOperator(task_id=task_id, dag=dag)
 
-    def clear_time_unit_operator(self,task_id, dag, table):
+    def clear_time_unit_operator(self, task_id, dag, table):
         return DummyOperator(task_id=task_id, dag=dag)
 
     def merge_operator(self, task_id, dag, table):
@@ -47,10 +46,9 @@ class BaseEngine(object):
 
 
 class ExasolEngine(BaseEngine):
-
     def __init__(self, exasol_conn_id=None, queue='default'):
         self.exasol_conn_id = exasol_conn_id
-        self.queue=queue
+        self.queue = queue
 
     def init_operator(self, task_id, dag, table, columns):
         key_columns = ["%s %s" % (k, v.column_type) for k, v in table.key_columns.iteritems()]
@@ -75,12 +73,13 @@ class ExasolEngine(BaseEngine):
             dag=dag,
             conn_id=self.exasol_conn_id,
             queue=self.queue,
-            sql="SELECT DISTINCT created_date FROM %s.%s WHERE CREATED_DATE='{{ macros.ds_add(ds, +1) }}'" % (dep.schema,dep.table)
+            sql="SELECT DISTINCT created_date FROM %s.%s WHERE CREATED_DATE='{{ macros.ds_add(ds, +1) }}'" % (
+                dep.schema, dep.table)
         )
 
     def aggregation_operator(self, task_id, dag, table, column):
         key_columns = table.key_columns.keys()
-        on_cols = ' AND '.join(["tmp.%s=agg.%s" % (c,c) for c in key_columns])
+        on_cols = ' AND '.join(["tmp.%s=agg.%s" % (c, c) for c in key_columns])
         in_cols = ', '.join(key_columns + [column.column_name])
         in_vals = ', '.join(["agg.%s" % c for c in (key_columns + ['val'])])
         params = {
@@ -106,7 +105,7 @@ class ExasolEngine(BaseEngine):
             queue=self.queue,
         )
 
-    def clear_time_unit_operator(self,task_id, dag, table):
+    def clear_time_unit_operator(self, task_id, dag, table):
         sql = "DELETE FROM %s WHERE %s = '{{ ds }}'" % (self._table(table), table.timeseries_key)
         return ExasolOperator(
             task_id=task_id,
