@@ -5,16 +5,16 @@ A conductor of aggregations in Apache Airflow
 
 ### Table
 
-| name | required | purpose |
-| ---- | -------- | ------- |
+| name | required | purpose | default |
+| ---- | -------- | ------- | ------- |
 | start_date | required | start date of the DAG |
 | schema | required | DB Schema of the aggregated table |
 | key_columns | required | columns to merge new data on |
 | aggregated_columns | required | column name -> column reference | 
-| timeseries_key | optional | TODO |
+| timeseries_key | optional | if set, aggregation will be done on per time unit basis |
 | items | optional | run the aggregation for multiple items | 
 | defaults | optional | set default values for the `params` object | 
-| item_key | if items | the parameterization key to be used for naming and more | 
+| item_key | optional | key of the item in items to be used for naming and more | key |
 
 #### tables.yml
 ```yaml
@@ -27,6 +27,7 @@ daily_user_activities:
     userid: DECIMAL(36,0)
   aggregated_columns:
     country: user_country
+  timeseries_key: activity_date
   items:
     - { game_key: g9i }
     - { game_key: g9, userid: fbuserid }
@@ -37,12 +38,12 @@ daily_user_activities:
 
 ### Column
 
-| name | required | purpose |
-| ---- | -------- | ------- |
+| name | required | purpose | default |
+| ---- | -------- | ------- | ------- |
 | query | required | aggregation query |
-| dependencies | optional | things to wait for |
 | column_type | required | column type of the aggregated column |
-| paramterize | optional | if true, the aggregation will run for each item of table.items |
+| dependencies | optional | a list of dependencies |
+| paramterize | optional | if true, the aggregation will run for each item of table.items | false |
 
 #### columns.yml
 ```yaml
@@ -61,7 +62,34 @@ user_country:
     - type: tracking
       schema: '{{ params.game_key }}'
       table: APP_LOGINS
+    - type: delta
+      delta: 30d
   column_type: VARCHAR(2)
   parameterize: true
 ```
 
+### Dependencies
+
+#### Tracking
+
+| name | purpose |
+| ---- | ------- |
+| schema | schema of the table to wait for |
+| table | name of the table to wait for |
+
+```yaml
+type: tracking
+schema: '{{ params.game_key }}'
+table: APP_LOGINS
+```
+
+#### Delta
+
+| name | purpose |
+| ---- | ------- |
+| delta | time to wait since execution period |
+
+```yaml
+type: delta
+delta: 2h
+```
