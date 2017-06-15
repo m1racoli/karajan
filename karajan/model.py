@@ -46,7 +46,13 @@ class AggregatedColumn(Column):
     def __init__(self, name, conf, params):
         conf = self._render_conf(conf, params)
         self.query = conf.get('query', '')
-        self.dependencies = [get_dependency(c) for c in conf.get('dependencies', [])]
+        dependencies = conf.get('dependencies')
+        if dependencies is None:
+            dependencies = [NothingDependency()]
+        else:
+            dependencies = [get_dependency(c) for c in dependencies]
+
+        self.dependencies = dependencies
         self.parameterize = conf.get('parameterize', False)
         self.column_name = name
         name = "%s_%s" % (name, params['item_key']) if self.parameterize else name
@@ -74,6 +80,11 @@ class AggregatedColumn(Column):
 class Dependency(ModelBase):
     def id(self):
         return ("wait_for_%s" % self.name).lower()
+
+
+class NothingDependency(Dependency):
+    def __init__(self):
+        super(NothingDependency, self).__init__('nothing')
 
 
 class TrackingDependency(Dependency):

@@ -2,7 +2,7 @@ from airflow.operators.dummy_operator import DummyOperator
 from airflow.operators.exasol_operator import ExasolOperator
 from airflow.operators.sensors import SqlSensor, TimeDeltaSensor
 
-from karajan.model import DeltaDependency, TrackingDependency
+from karajan.model import DeltaDependency, TrackingDependency, NothingDependency
 
 
 class BaseEngine(object):
@@ -15,6 +15,8 @@ class BaseEngine(object):
             return self.delta_dependency_operator(task_id, dag, dep)
         elif isinstance(dep, TrackingDependency):
             return self.tracking_dependency_operator(task_id, dag, dep)
+        elif isinstance(dep, NothingDependency):
+            return self.nothing_dependency_operator(task_id, dag, dep)
         else:
             raise "Dependency operator for %s not found" % type(dep)
 
@@ -24,6 +26,9 @@ class BaseEngine(object):
             dag=dag,
             delta=dep.delta,
         )
+
+    def nothing_dependency_operator(self, task_id, dag, dep):
+        return DummyOperator(task_id=task_id, dag=dag)
 
     def tracking_dependency_operator(self, task_id, dag, dep):
         return DummyOperator(task_id=task_id, dag=dag)
