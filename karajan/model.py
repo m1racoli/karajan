@@ -73,7 +73,7 @@ class AggregatedColumn(Column):
 
 class Dependency(ModelBase):
     def id(self):
-        return ("wait_%s" % self.name).lower()
+        return ("wait_for_%s" % self.name).lower()
 
 
 class TrackingDependency(Dependency):
