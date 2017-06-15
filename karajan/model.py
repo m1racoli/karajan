@@ -78,17 +78,17 @@ class AggregatedColumn(Column):
         return [d.id() for d in self.dependencies]
 
 
-class Dependency(ModelBase):
+class BaseDependency(ModelBase):
     def id(self):
         return ("wait_for_%s" % self.name).lower()
 
 
-class NothingDependency(Dependency):
+class NothingDependency(BaseDependency):
     def __init__(self):
         super(NothingDependency, self).__init__('nothing')
 
 
-class TrackingDependency(Dependency):
+class TrackingDependency(BaseDependency):
     def __init__(self, conf):
         self.schema = conf.get('schema')
         self.table = conf.get('table')
@@ -96,7 +96,7 @@ class TrackingDependency(Dependency):
         super(TrackingDependency, self).__init__(name)
 
 
-class DeltaDependency(Dependency):
+class DeltaDependency(BaseDependency):
     def __init__(self, conf):
         td = conf.get('delta')
         if isinstance(td, int):
