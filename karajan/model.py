@@ -118,5 +118,4 @@ d_map = {
 
 
 def get_dependency(conf):
-    type = conf.get('type')
-    return d_map[type](conf)
+    return d_map[conf.get('type')](conf)
