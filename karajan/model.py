@@ -4,14 +4,14 @@ from jinja2 import Template
 
 
 class ModelBase(object):
-    def __init__(self, name, conf):
+    def __init__(self, name):
         self.name = name
 
 
 class Table(ModelBase):
     def __init__(self, name, conf):
         self.schema = conf['schema']
-        super(Table, self).__init__(name, conf)
+        super(Table, self).__init__(name)
 
 
 class AggregatedTable(Table):
@@ -39,7 +39,7 @@ class Column(ModelBase):
             self.column_type = conf
         else:
             self.column_type = conf['column_type']
-        super(Column, self).__init__(name, conf)
+        super(Column, self).__init__(name)
 
 
 class AggregatedColumn(Column):
@@ -81,7 +81,7 @@ class TrackingDependency(Dependency):
         self.schema = conf.get('schema')
         self.table = conf.get('table')
         name = ("%s_%s" % (self.schema, self.table)).lower()
-        super(TrackingDependency, self).__init__(name, conf)
+        super(TrackingDependency, self).__init__(name)
 
 
 class DeltaDependency(Dependency):
@@ -94,7 +94,7 @@ class DeltaDependency(Dependency):
 
         self.delta = td
         name = ("%s_seconds_delta" % int(self.delta.total_seconds())).lower()
-        super(DeltaDependency, self).__init__(name, conf)
+        super(DeltaDependency, self).__init__(name)
 
     __timedelta_regex = re.compile(
         r'((?P<weeks>\d+?)w)?((?P<days>\d+?)d)?((?P<hours>\d+?)h)?((?P<minutes>\d+?)m)?((?P<seconds>\d+?)s)?')
