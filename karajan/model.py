@@ -1,4 +1,5 @@
-from datetime import datetime
+import re
+from datetime import datetime, timedelta
 from jinja2 import Template
 
 
@@ -83,8 +84,36 @@ class TrackingDependency(Dependency):
         super(TrackingDependency, self).__init__(name, conf)
 
 
+class DeltaDependency(Dependency):
+    def __init__(self, conf):
+        td = conf.get('delta')
+        if isinstance(td, int):
+            td = timedelta(seconds=td)
+        elif isinstance(td, unicode):
+            td = self._parse_timedelta(td)
+
+        self.delta = td
+        name = ("%s_seconds_delta" % int(self.delta.total_seconds())).lower()
+        super(DeltaDependency, self).__init__(name, conf)
+
+    __timedelta_regex = re.compile(
+        r'((?P<weeks>\d+?)w)?((?P<days>\d+?)d)?((?P<hours>\d+?)h)?((?P<minutes>\d+?)m)?((?P<seconds>\d+?)s)?')
+
+    def _parse_timedelta(self, str):
+        parts = self.__timedelta_regex.match(str)
+        if not parts:
+            return timedelta()
+        parts = parts.groupdict()
+        time_params = {}
+        for (name, param) in parts.iteritems():
+            if param:
+                time_params[name] = int(param)
+        return timedelta(**time_params)
+
+
 d_map = {
-    'tracking': TrackingDependency
+    'tracking': TrackingDependency,
+    'delta': DeltaDependency,
 }
 
 

@@ -54,7 +54,7 @@ class Conductor(object):
 
             for dep_id, dep in self._merge_dependencies(columns).iteritems():
                 if dep_id not in deps:
-                    d_op = engine.tracking_dependency_operator(dep_id, dag, dep)
+                    d_op = engine.dependency_operator(dep_id, dag, dep)
                     deps[dep_id] = d_op
                     d_op.set_upstream(init)
 
