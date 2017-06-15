@@ -110,8 +110,8 @@ class DeltaDependency(Dependency):
     __timedelta_regex = re.compile(
         r'((?P<weeks>\d+?)w)?((?P<days>\d+?)d)?((?P<hours>\d+?)h)?((?P<minutes>\d+?)m)?((?P<seconds>\d+?)s)?')
 
-    def _parse_timedelta(self, str):
-        parts = self.__timedelta_regex.match(str)
+    def _parse_timedelta(self, s):
+        parts = self.__timedelta_regex.match(s)
         if not parts:
             return timedelta()
         parts = parts.groupdict()
