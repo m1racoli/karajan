@@ -1,7 +1,7 @@
 from airflow.models import DAG
 
 from karajan.config import Config
-from karajan.model import AggregatedTable, AggregatedColumn
+from karajan.model import AggregatedTable, AggregatedColumn, Column
 
 
 class Conductor(object):
@@ -30,7 +30,7 @@ class Conductor(object):
 
     def _build_dag(self, engine, table):
         dag = DAG(table.dag_id(self.prefix), start_date=table.start_date)
-        init = engine.init_operator('init', dag, table)
+        init = engine.init_operator('init', dag, table, self._columns(table))
         merge = engine.merge_operator('merge', dag, table)
         cleanup = engine.cleanup_operator('cleanup', dag, table)
         cleanup.set_upstream(merge)
@@ -44,11 +44,11 @@ class Conductor(object):
             params.update(item)
             params['item_key'] = params[table.item_key]
 
-            columns = self._columns(table, params)
+            columns = self._agg_columns(table, params)
 
             for dep_id, dep in self._merge_dependencies(columns).iteritems():
                 if dep_id not in deps:
-                    d_op = engine.dependency_operator(dep_id, dag, dep)
+                    d_op = engine.tracking_dependency_operator(dep_id, dag, dep)
                     deps[dep_id] = d_op
                     d_op.set_upstream(init)
 
@@ -65,7 +65,10 @@ class Conductor(object):
 
         return dag
 
-    def _columns(self, table, params):
+    def _columns(self, table):
+        return {k: Column(k,self.conf['columns'][v]) for k,v in table.aggregated_columns.iteritems() }
+
+    def _agg_columns(self, table, params):
         cols = {}
         for column_name, conf_name in table.aggregated_columns.iteritems():
             col = AggregatedColumn(column_name, self.conf['columns'][conf_name], params)

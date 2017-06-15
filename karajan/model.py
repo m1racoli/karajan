@@ -1,16 +1,10 @@
-from airflow.models import DAG
+from datetime import datetime
 from jinja2 import Template
-from jinja2.environment import Environment
-
-from karajan.validations import validate_presence
 
 
 class ModelBase(object):
     def __init__(self, name, conf):
         self.name = name
-
-    def validate(self):
-        validate_presence(self.name)
 
 
 class Table(ModelBase):
@@ -21,7 +15,8 @@ class Table(ModelBase):
 
 class AggregatedTable(Table):
     def __init__(self, name, conf):
-        self.start_date = conf.get('start_date')
+        dt = conf.get('start_date')  # TODO sanitize airflow related dates in conf
+        self.start_date = datetime(dt.year, dt.month, dt.day)
         self.key_columns = {n: Column(n, c) for n, c in conf.get('key_columns', {}).iteritems()}
         self.aggregated_columns = conf.get('aggregated_columns', {})
         self.items = conf.get('items', [])
