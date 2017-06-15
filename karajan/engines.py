@@ -14,6 +14,9 @@ class BaseEngine(object):
     def aggregation_operator(self, task_id, dag, table, column):
         return DummyOperator(task_id=task_id, dag=dag)
 
+    def clear_time_unit_operator(self,task_id, dag, table):
+        return DummyOperator(task_id=task_id, dag=dag)
+
     def merge_operator(self, task_id, dag, table):
         return DummyOperator(task_id=task_id, dag=dag)
 
@@ -73,6 +76,16 @@ class ExasolEngine(BaseEngine):
         INSERT ({in_cols})
         VALUES ({in_vals})
         """.format(**params)
+        return ExasolOperator(
+            task_id=task_id,
+            exasol_conn_id=self.exasol_conn_id,
+            dag=dag,
+            sql=sql,
+            queue=self.queue,
+        )
+
+    def clear_time_unit_operator(self,task_id, dag, table):
+        sql = "DELETE FROM %s WHERE %s = '{{ ds }}'" % (self._table(table), table.timeseries_key)
         return ExasolOperator(
             task_id=task_id,
             exasol_conn_id=self.exasol_conn_id,

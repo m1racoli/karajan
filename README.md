@@ -11,6 +11,7 @@ A conductor of aggregations in Apache Airflow
 | schema | required | DB Schema of the aggregated table |
 | key_columns | required | columns to merge new data on |
 | aggregated_columns | required | column name -> column reference | 
+| timeseries_key | optional | TODO |
 | items | optional | run the aggregation for multiple items | 
 | defaults | optional | set default values for the `params` object | 
 | item_key | if items | the parameterization key to be used for naming and more | 

@@ -22,6 +22,7 @@ class AggregatedTable(Table):
         self.items = conf.get('items', [])
         self.defaults = conf.get('defaults', {})
         self.item_key = conf.get('item_key')
+        self.timeseries_key = conf.get('timeseries_key')
         super(AggregatedTable, self).__init__(name, conf)
 
     def dag_id(self, prefix=None):

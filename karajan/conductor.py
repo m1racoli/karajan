@@ -32,6 +32,12 @@ class Conductor(object):
         dag = DAG(table.dag_id(self.prefix), start_date=table.start_date)
         init = engine.init_operator('init', dag, table, self._columns(table))
         merge = engine.merge_operator('merge', dag, table)
+        if table.timeseries_key is not None:
+            clear_time_unit = engine.clear_time_unit_operator('clear_%s' % table.timeseries_key, dag, table)
+            clear_time_unit.set_downstream(merge)
+            after_agg = clear_time_unit
+        else:
+            after_agg = merge
         cleanup = engine.cleanup_operator('cleanup', dag, table)
         cleanup.set_upstream(merge)
         deps = {}
@@ -56,7 +62,7 @@ class Conductor(object):
                 if col_id not in cols:
                     col_op = engine.aggregation_operator(col_id, dag, table, col)
                     cols[col_id] = col_op
-                    col_op.set_downstream(merge)
+                    col_op.set_downstream(after_agg)
 
                 for dep_id in col.dependency_ids():
                     dep_op = deps[dep_id]
