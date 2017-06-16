@@ -49,7 +49,7 @@ class Conductor(object):
             params = {}
             params.update(table.defaults)
             params.update(item)
-            params['item_key'] = params[table.item_key]
+            params['item_key'] = params.get(table.item_key)
 
             columns = self._agg_columns(table, params)
 

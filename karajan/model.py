@@ -1,27 +1,38 @@
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 
 from jinja2 import Template
+
+from validations import *
 
 
 class ModelBase(object):
     def __init__(self, name):
         self.name = name
+        self.validate()
+
+    def validate(self):
+        validate_presence(self, 'name')
 
 
 class Table(ModelBase):
     def __init__(self, name, conf):
-        self.schema = conf['schema']
+        self.schema = conf.get('schema', None)
         super(Table, self).__init__(name)
+
+    def validate(self):
+        validate_presence(self, 'schema')
+        validate_not_empty(self, 'key_columns')
+        validate_not_empty(self, 'aggregated_columns')
+        super(Table, self).validate()
 
 
 class AggregatedTable(Table):
     def __init__(self, name, conf):
-        dt = conf.get('start_date')  # TODO sanitize airflow related dates in conf
-        self.start_date = datetime(dt.year, dt.month, dt.day)
+        self.start_date = self._date_time(conf.get('start_date'))
         self.key_columns = {n: Column(n, c) for n, c in conf.get('key_columns', {}).iteritems()}
         self.aggregated_columns = conf.get('aggregated_columns', {})
-        self.items = conf.get('items', [])
+        self.items = conf.get('items', [{}])
         self.defaults = conf.get('defaults', {})
         self.item_key = conf.get('item_key', 'key')
         self.timeseries_key = conf.get('timeseries_key')
@@ -33,14 +44,28 @@ class AggregatedTable(Table):
         else:
             return '%s_%s' % (prefix, self.name)
 
+    def validate(self):
+        validate_presence(self, 'start_date')
+        super(AggregatedTable, self).validate()
+
+    @staticmethod
+    def _date_time(o):
+        if isinstance(o, date):
+            return datetime(o.year, o.month, o.day)
+        return o
+
 
 class Column(ModelBase):
     def __init__(self, name, conf):
         if type(conf) == str:
             self.column_type = conf
         else:
-            self.column_type = conf['column_type']
+            self.column_type = conf.get('column_type')
         super(Column, self).__init__(name)
+
+    def validate(self):
+        validate_presence(self, 'column_type')
+        super(Column, self).validate()
 
 
 class AggregatedColumn(Column):
@@ -58,6 +83,10 @@ class AggregatedColumn(Column):
         self.column_name = name
         name = "%s_%s" % (name, params['item_key']) if self.parameterize else name
         super(AggregatedColumn, self).__init__(name, conf)
+
+    def validate(self):
+        validate_presence(self, 'query')
+        super(AggregatedColumn, self).validate()
 
     template_ignore_keywords = ['ds']
     template_ignore_mapping = {k: '{{ %s }}' % k for k in template_ignore_keywords}
