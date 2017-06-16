@@ -39,7 +39,7 @@ class AggregatedTable(Table):
         super(AggregatedTable, self).__init__(name, conf)
 
     def dag_id(self, prefix=None):
-        if prefix is None:
+        if not prefix:
             return self.name
         else:
             return '%s_%s' % (prefix, self.name)

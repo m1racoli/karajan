@@ -10,6 +10,11 @@ def get_conf(context):
     return context.conf
 
 
+def get_model_conf(context, model):
+    conf = get_conf(context)
+    return conf.get('%ss' % model)
+
+
 def min_config():
     return {
         'tables': {

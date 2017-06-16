@@ -6,6 +6,13 @@ from assertions import *
 from config import *
 
 
+def get_dag(context, dag_id):
+    dag = context.dags.get(dag_id)
+    if dag:
+        return dag
+    raise Exception('DAG %s not found' % dag_id)
+
+
 @when(u'I build the DAGs')
 def step_impl(context):
     context.dags = Conductor(get_conf(context)).build()
@@ -40,3 +47,8 @@ def step_impl(context, cnt):
 def step_impl(context, exception_type):
     assert_contains(context, 'exception')
     assert_equals(context.exception.get('type'), exception_type)
+
+
+@step(u'the DAG {dag_id} should have the task {task_id}')
+def step_impl(context, dag_id, task_id):
+    assert_contains(get_dag(context, dag_id).task_ids, task_id)

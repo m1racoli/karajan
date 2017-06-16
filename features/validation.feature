@@ -1,4 +1,5 @@
-Feature: Validate the configuration
+Feature: Validation
+  Validate the configuration
 
   Background:
     Given a minimal config
