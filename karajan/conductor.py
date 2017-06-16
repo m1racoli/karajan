@@ -1,11 +1,12 @@
 from airflow.models import DAG
 
 from karajan.config import Config
+from karajan.engines import BaseEngine
 from karajan.model import AggregatedTable, AggregatedColumn, Column
 
 
 class Conductor(object):
-    def __init__(self, conf, prefix=''):
+    def __init__(self, conf=None, prefix=''):
         """
         :param conf: path or dict
         :param prefix: dag_id = {prefix}_{table_name}
@@ -13,7 +14,7 @@ class Conductor(object):
         self.conf = Config.load(conf)
         self.prefix = prefix
 
-    def build(self, engine, target=None):
+    def build(self, engine=BaseEngine(), target=None):
 
         tables = {n: AggregatedTable(n, c) for n, c in self.conf['tables'].iteritems()}
 
