@@ -43,7 +43,7 @@ def step_impl(context, cnt):
     assert_equals(len(context.dags), cnt)
 
 
-@then(u'there should have been an exception "{exception_type}"')
+@then(u'there should have been an exception {exception_type}')
 def step_impl(context, exception_type):
     assert_contains(context, 'exception')
     assert_equals(context.exception.get('type'), exception_type)
