@@ -19,6 +19,10 @@ def get_column_conf(context):
     return get_model_conf(context, 'column')
 
 
+def get_table_conf(context):
+    return get_model_conf(context, 'table')
+
+
 def min_config():
     return {
         'tables': {

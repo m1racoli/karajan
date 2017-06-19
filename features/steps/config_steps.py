@@ -33,3 +33,11 @@ def step_impl(context, id, dep_type):
     conf = get_column_conf(context).get(id)
     conf['dependencies'] = conf.get('dependencies', [])
     conf['dependencies'].append(min_dependency_config(dep_type))
+
+
+@given(u'the table {id} has a timeseries key {timeseries_key}')
+def step_impl(context, id, timeseries_key):
+    conf = get_table_conf(context).get(id)
+    conf['key_columns'] = conf.get('key_columns', {})
+    conf['key_columns']['datum'] = 'DATE'
+    conf['timeseries_key'] = timeseries_key
