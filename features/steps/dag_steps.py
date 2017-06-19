@@ -49,6 +49,11 @@ def step_impl(context, exception_type):
     assert_equals(context.exception.get('type'), exception_type)
 
 
-@step(u'the DAG {dag_id} should have the task {task_id}')
+@then(u'the DAG {dag_id} should have the task {task_id}')
 def step_impl(context, dag_id, task_id):
     assert_contains(get_dag(context, dag_id).task_ids, task_id)
+
+
+@then(u'the task {task_id} of {dag_id} should be of type {task_type}')
+def step_impl(context, task_id, dag_id, task_type):
+    assert_equals(type(get_dag(context, dag_id).task_dict[task_id]).__name__, task_type)
