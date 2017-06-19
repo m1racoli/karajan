@@ -24,5 +24,12 @@ def step_impl(context, model, id):
 
 @given(u'the column {id} is parameterized')
 def step_impl(context, id):
-    conf = get_model_conf(context, 'column').get(id)
+    conf = get_column_conf(context).get(id)
     conf['parameterize'] = True
+
+
+@given(u'the column {id} has a {dep_type} dependency')
+def step_impl(context, id, dep_type):
+    conf = get_column_conf(context).get(id)
+    conf['dependencies'] = conf.get('dependencies', [])
+    conf['dependencies'].append(min_dependency_config(dep_type))

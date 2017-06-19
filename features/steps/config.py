@@ -15,6 +15,10 @@ def get_model_conf(context, model):
     return conf.get('%ss' % model)
 
 
+def get_column_conf(context):
+    return get_model_conf(context, 'column')
+
+
 def min_config():
     return {
         'tables': {
@@ -36,3 +40,12 @@ def min_config():
             }
         },
     }
+
+
+def min_dependency_config(dep_type):
+    conf = {
+        'tracking': {'schema': 'test', 'table': 'test'},
+        'delta': {'delta': 0}
+    }[dep_type]
+    conf['type'] = dep_type
+    return conf
