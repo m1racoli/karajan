@@ -172,4 +172,4 @@ class ExasolEngine(BaseEngine):
 
     @staticmethod
     def _tmp_table(table):
-        return '%s.%s_tmp_{{ ts_nodash }}' % (table.schema, table.name)
+        return '%s_tmp.%s_tmp_{{ ts_nodash }}' % (table.schema, table.name)
