@@ -65,7 +65,7 @@ class ExasolEngine(BaseEngine):
         agg_columns = ["%s %s" % (k, v.column_type) for k, v in columns.iteritems()]
         col_str = ',\n'.join(key_columns + agg_columns)
         sql = """
-        CREATE TABLE %s (
+        CREATE OR REPLACE TABLE %s (
         %s
         )
         """ % (self._tmp_table(table), col_str)
