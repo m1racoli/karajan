@@ -97,7 +97,10 @@ class AggregatedColumn(Column):
         elif isinstance(conf, list):
             return [self._render_conf(v, params) for v in conf]
         elif isinstance(conf, str):
-            return Template(conf).render(params=params, **self.template_ignore_mapping)
+            render_params = dict()
+            render_params.update(params)
+            render_params.update(self.template_ignore_mapping)
+            return Template(conf).render(**render_params)
         return conf
 
     def id(self):
