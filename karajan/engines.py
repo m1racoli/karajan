@@ -98,11 +98,14 @@ class ExasolEngine(BaseEngine):
             'query': column.query,
             'in_cols': in_cols,
             'in_vals': in_vals,
+            'col_name': column.column_name,
         }
         sql = """
         MERGE INTO {tmp_table} tmp 
         USING ({query}) agg
         ON {on_cols}
+        WHEN MATCHED THEN
+        UPDATE SET {col_name}=agg.val
         WHEN NOT MATCHED THEN
         INSERT ({in_cols})
         VALUES ({in_vals})
