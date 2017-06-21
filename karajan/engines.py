@@ -1,8 +1,8 @@
 from airflow.operators.dummy_operator import DummyOperator
 from airflow.operators.exasol_operator import ExasolOperator
-from airflow.operators.sensors import SqlSensor, TimeDeltaSensor
+from airflow.operators.sensors import SqlSensor, TimeDeltaSensor, ExternalTaskSensor
 
-from karajan.model import DeltaDependency, TrackingDependency, NothingDependency
+from karajan.model import DeltaDependency, TrackingDependency, NothingDependency, TaskDependency
 
 
 class BaseEngine(object):
@@ -16,6 +16,8 @@ class BaseEngine(object):
             return self.tracking_dependency_operator(task_id, dag, dep)
         elif isinstance(dep, NothingDependency):
             return self.nothing_dependency_operator(task_id, dag, dep)
+        elif isinstance(dep, TaskDependency):
+            return self.task_dependency_operator(task_id, dag, dep)
         else:
             raise "Dependency operator for %s not found" % type(dep)
 
@@ -31,6 +33,14 @@ class BaseEngine(object):
 
     def tracking_dependency_operator(self, task_id, dag, dep):
         return DummyOperator(task_id=task_id, dag=dag)
+
+    def task_dependency_operator(self, task_id, dag, dep):
+        return ExternalTaskSensor(
+            task_id=task_id,
+            external_task_id=dep.task_id,
+            external_dag_id=dep.dag_id,
+            dag=dag,
+        )
 
     def aggregation_operator(self, task_id, dag, table, column):
         return DummyOperator(task_id=task_id, dag=dag)

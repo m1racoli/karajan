@@ -152,9 +152,18 @@ class DeltaDependency(BaseDependency):
         return timedelta(**time_params)
 
 
+class TaskDependency(BaseDependency):
+    def __init__(self, conf):
+        self.dag_id = conf.get('dag_id')
+        self.task_id = conf.get('task_id')
+        name = ("task_%s_%s" % (self.dag_id, self.task_id)).lower()
+        super(TaskDependency, self).__init__(name)
+
+
 d_map = {
     'tracking': TrackingDependency,
     'delta': DeltaDependency,
+    'task': TaskDependency,
 }
 
 
