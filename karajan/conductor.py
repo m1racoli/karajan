@@ -78,7 +78,7 @@ class Conductor(object):
     def _agg_columns(self, table, params):
         cols = {}
         for column_name, conf_name in table.aggregated_columns.iteritems():
-            col = AggregatedColumn(column_name, self.conf['columns'][conf_name], params)
+            col = AggregatedColumn(column_name, self.conf['columns'][conf_name], table, params)
             cols[col.id()] = col
         return cols
 

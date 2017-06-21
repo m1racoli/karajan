@@ -43,7 +43,6 @@ daily_user_activities:
 | query | required | aggregation query |
 | column_type | required | column type of the aggregated column |
 | dependencies | optional | a list of dependencies |
-| paramterize | optional | if true, the aggregation will run for each item of table.items | false |
 
 #### columns.yml
 ```yaml
@@ -65,7 +64,6 @@ user_country:
     - type: delta
       delta: 30d
   column_type: VARCHAR(2)
-  parameterize: true
 ```
 
 ### Dependencies

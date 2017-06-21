@@ -25,7 +25,7 @@ def step_impl(context, model, id):
 @given(u'the column {id} is parameterized')
 def step_impl(context, id):
     conf = get_column_conf(context).get(id)
-    conf['parameterize'] = True
+    conf['query'] = conf.get('query').replace('key', '{{ key }}')
 
 
 @given(u'the column {id} has a {dep_type} dependency')

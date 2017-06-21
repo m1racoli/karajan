@@ -69,20 +69,20 @@ class Column(ModelBase):
 
 
 class AggregatedColumn(Column):
-    def __init__(self, name, conf, params):
-        conf = self._render_conf(conf, params)
-        self.query = conf.get('query', '')
-        dependencies = conf.get('dependencies')
+    def __init__(self, name, conf, table, params):
+        rendered_conf = self._render_conf(conf, params)
+        self.query = rendered_conf.get('query', '')
+        dependencies = rendered_conf.get('dependencies')
         if dependencies is None:
             dependencies = [NothingDependency()]
         else:
             dependencies = [get_dependency(c) for c in dependencies]
 
         self.dependencies = dependencies
-        self.parameterize = conf.get('parameterize', False)
+        self.parameterize = self._check_parameterize(conf, table)
         self.column_name = name
-        name = "%s_%s" % (name, params['item_key']) if self.parameterize else name
-        super(AggregatedColumn, self).__init__(name, conf)
+        name = "%s_%s" % (name, params[table.item_key]) if self.parameterize else name
+        super(AggregatedColumn, self).__init__(name, rendered_conf)
 
     def validate(self):
         validate_presence(self, 'query')
@@ -102,6 +102,16 @@ class AggregatedColumn(Column):
             render_params.update(self.template_ignore_mapping)
             return Template(conf).render(**render_params)
         return conf
+
+    def _check_parameterize(self, conf, table):
+        query = conf.get('query', '').replace('\n',' ') # wildcard doesn't match linebreaks
+        if self._param_regex(table.item_key).match(query):
+            return True
+        return False
+
+    @staticmethod
+    def _param_regex(name):
+        return re.compile('^.*{{ *%s *}}.*$' % name)
 
     def id(self):
         return ("aggregate_%s" % self.name).lower()
