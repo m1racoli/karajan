@@ -14,7 +14,7 @@ A conductor of aggregations in Apache Airflow
 | timeseries_key | optional | if set, aggregation will be done on per time unit basis |
 | items | optional | run the aggregation for multiple items | 
 | defaults | optional | set default values for the `params` object | 
-| item_key | optional | key of the item in items to be used for naming and more | key |
+| item_key | optional | must be one of the key columns and not the timeseries key. used for parameterisation of aggregations | key |
 
 #### tables.yml
 ```yaml
@@ -49,7 +49,6 @@ daily_user_activities:
 user_country:
   query: |
     SELECT
-      '{{ params.game_key }}' as game_key,
       CREATED_DATE as activity_date,
       {{ params.userid }} as userid,
       LAST_VALUE(COUNTRY) as value
