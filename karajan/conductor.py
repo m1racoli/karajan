@@ -2,7 +2,7 @@ from airflow.models import DAG
 
 from karajan.config import Config
 from karajan.engines import BaseEngine
-from karajan.model import AggregatedTable, AggregatedColumn, Column
+from karajan.model import AggregatedTable, AggregatedColumn, Column, NothingDependency, get_dependency
 
 
 class Conductor(object):
@@ -41,51 +41,40 @@ class Conductor(object):
             after_agg = merge
         cleanup = engine.cleanup_operator('cleanup', dag, table)
         cleanup.set_upstream(merge)
-        deps = {}
-        cols = {}
+        dep_ops = {}
+        col_ops = {}
 
-        for item in table.items:
+        agg_columns = self._agg_columns(table)
+        for col_id, col in agg_columns.iteritems():
+            col_op = engine.aggregation_operator(col_id, dag, table, col)
+            col_ops[col_id] = col_op
+            col_op.set_downstream(after_agg)
 
-            params = {}
-            params.update(table.defaults)
-            params.update(item)
-            params['item_key'] = params.get(table.item_key)
+            for params in table.param_set():
 
-            columns = self._agg_columns(table, params)
-
-            for dep_id, dep in self._merge_dependencies(columns).iteritems():
-                if dep_id not in deps:
-                    d_op = engine.dependency_operator(dep_id, dag, dep)
-                    deps[dep_id] = d_op
-                    d_op.set_upstream(init)
-
-            for col_id, col in columns.iteritems():
-                if col_id not in cols:
-                    col_op = engine.aggregation_operator(col_id, dag, table, col)
-                    cols[col_id] = col_op
-                    col_op.set_downstream(after_agg)
-
-                for dep_id in col.dependency_ids():
-                    dep_op = deps[dep_id]
-                    if col_id not in dep_op.downstream_task_ids:
-                        cols[col_id].set_upstream(dep_op)
+                for dep in self._get_dependencies(col, params):
+                    dep_id = dep.id()
+                    if dep_id not in dep_ops:
+                        dep_op = engine.dependency_operator(dep_id, dag, dep)
+                        dep_ops[dep_id] = dep_op
+                        dep_op.set_upstream(init)
+                    col_op.set_upstream(dep_ops[dep_id])
 
         return dag
 
     def _columns(self, table):
         return {k: Column(k, self.conf['columns'][v]) for k, v in table.aggregated_columns.iteritems()}
 
-    def _agg_columns(self, table, params):
+    def _agg_columns(self, table):
         cols = {}
         for column_name, conf_name in table.aggregated_columns.iteritems():
-            col = AggregatedColumn(column_name, self.conf['columns'][conf_name], table, params)
+            col = AggregatedColumn(column_name, self.conf['columns'][conf_name], table)
             cols[col.id()] = col
         return cols
 
     @staticmethod
-    def _merge_dependencies(columns):
-        deps = {}
-        for column in columns.values():
-            for dep in column.dependencies:
-                deps[dep.id()] = dep
-        return deps
+    def _get_dependencies(column, params):
+        if column.has_dependencies():
+            return [get_dependency(Config.render(dep_conf, params)) for dep_conf in column.dependencies]
+        else:
+            return [NothingDependency()]

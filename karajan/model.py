@@ -1,8 +1,6 @@
 import re
 from datetime import datetime, timedelta, date
 
-from jinja2 import Template
-
 from validations import *
 
 
@@ -54,6 +52,15 @@ class AggregatedTable(Table):
             return datetime(o.year, o.month, o.day)
         return o
 
+    def param_set(self):
+        l = []
+        for item in self.items:
+            params = {}
+            params.update(self.defaults)
+            params.update(item)
+            l.append(params)
+        return l
+
 
 class Column(ModelBase):
     def __init__(self, name, conf):
@@ -69,42 +76,19 @@ class Column(ModelBase):
 
 
 class AggregatedColumn(Column):
-    def __init__(self, name, conf, table, params):
-        rendered_conf = self._render_conf(conf, params)
-        self.query = rendered_conf.get('query', '')
-        dependencies = rendered_conf.get('dependencies')
-        if dependencies is None:
-            dependencies = [NothingDependency()]
-        else:
-            dependencies = [get_dependency(c) for c in dependencies]
-
-        self.dependencies = dependencies
-        self.parameterize = self._check_parameterize(conf, table)
+    def __init__(self, name, conf, table):
+        self.query = conf.get('query', '')
+        self.dependencies = conf.get('dependencies')
+        self.parameterize = self._check_parameterize(table)
         self.column_name = name
-        name = "%s_%s" % (name, params[table.item_key]) if self.parameterize else name
-        super(AggregatedColumn, self).__init__(name, rendered_conf)
+        super(AggregatedColumn, self).__init__(name, conf)
 
     def validate(self):
         validate_presence(self, 'query')
         super(AggregatedColumn, self).validate()
 
-    template_ignore_keywords = ['ds']
-    template_ignore_mapping = {k: '{{ %s }}' % k for k in template_ignore_keywords}
-
-    def _render_conf(self, conf, params):
-        if isinstance(conf, dict):
-            return {k: self._render_conf(v, params) for k, v in conf.iteritems()}
-        elif isinstance(conf, list):
-            return [self._render_conf(v, params) for v in conf]
-        elif isinstance(conf, str):
-            render_params = dict()
-            render_params.update(params)
-            render_params.update(self.template_ignore_mapping)
-            return Template(conf).render(**render_params)
-        return conf
-
-    def _check_parameterize(self, conf, table):
-        query = conf.get('query', '').replace('\n',' ') # wildcard doesn't match linebreaks
+    def _check_parameterize(self, table):
+        query = self.query.replace('\n',' ') # wildcard doesn't match linebreaks
         if self._param_regex(table.item_key).match(query):
             return True
         return False
@@ -116,8 +100,8 @@ class AggregatedColumn(Column):
     def id(self):
         return ("aggregate_%s" % self.name).lower()
 
-    def dependency_ids(self):
-        return [d.id() for d in self.dependencies]
+    def has_dependencies(self):
+        return self.dependencies is not None
 
 
 class BaseDependency(ModelBase):
