@@ -101,7 +101,12 @@ class ExasolEngine(BaseEngine):
             sub_queries = [sub_query(params) for params in table.param_set()]
             query = '\nUNION ALL\n'.join(sub_queries)
         else:
-            query = column.query
+            sql_params = {
+                'query': Config.render(column.query, table.defaults),
+                'column': ',\n'.join(['val'] + table.key_columns.keys()),
+                'where': '' if not table.item_key else '\nWHERE %s in (%s)' % (table.item_key, ','.join(["'%s'" % i for i in table.key_items()])),
+            }
+            query = """SELECT\n{columns}\nFROM ({query}) sub {where}""".format(**sql_params)
         key_columns = table.key_columns.keys()
         on_cols = ' AND '.join(["tmp.%s=agg.%s" % (c, c) for c in key_columns])
         in_cols = ', '.join(key_columns + [column.column_name])

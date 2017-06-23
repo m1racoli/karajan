@@ -32,7 +32,7 @@ class AggregatedTable(Table):
         self.aggregated_columns = conf.get('aggregated_columns', {})
         self.items = conf.get('items', [{}])
         self.defaults = conf.get('defaults', {})
-        self.item_key = conf.get('item_key', 'key')
+        self.item_key = conf.get('item_key')
         self.timeseries_key = conf.get('timeseries_key')
         super(AggregatedTable, self).__init__(name, conf)
 
@@ -60,6 +60,9 @@ class AggregatedTable(Table):
             params.update(item)
             l.append(params)
         return l
+
+    def key_items(self):
+        return [i[self.item_key] for i in self.items]
 
 
 class Column(ModelBase):
