@@ -2,6 +2,7 @@ from airflow.operators.dummy_operator import DummyOperator
 from airflow.operators.exasol_operator import ExasolOperator
 from airflow.operators.sensors import SqlSensor, TimeDeltaSensor, ExternalTaskSensor
 
+from karajan.config import Config
 from karajan.model import DeltaDependency, TrackingDependency, NothingDependency, TaskDependency
 
 
@@ -88,6 +89,24 @@ class ExasolEngine(BaseEngine):
         )
 
     def aggregation_operator(self, task_id, dag, table, column):
+        if column.parameterize:
+
+            def sub_query(params):
+                sql_params = {
+                    'query': Config.render(column.query, params),
+                    'columns': ',\n'.join(["'%s' as %s" % (params[table.item_key], table.item_key), 'val'] + [c for c in table.key_columns.keys() if c != table.item_key]),
+                }
+                return """SELECT\n{columns}\nFROM ({query}) sub""".format(**sql_params)
+
+            sub_queries = [sub_query(params) for params in table.param_set()]
+            query = '\nUNION ALL\n'.join(sub_queries)
+        else:
+            sql_params = {
+                'query': Config.render(column.query, table.defaults),
+                'column': ',\n'.join(['val'] + table.key_columns.keys()),
+                'where': '' if not table.item_key else '\nWHERE %s in (%s)' % (table.item_key, ','.join(["'%s'" % i for i in table.key_items()])),
+            }
+            query = """SELECT\n{columns}\nFROM ({query}) sub {where}""".format(**sql_params)
         key_columns = table.key_columns.keys()
         on_cols = ' AND '.join(["tmp.%s=agg.%s" % (c, c) for c in key_columns])
         in_cols = ', '.join(key_columns + [column.column_name])
@@ -95,14 +114,14 @@ class ExasolEngine(BaseEngine):
         params = {
             'tmp_table': self._tmp_table(table),
             'on_cols': on_cols,
-            'query': column.query,
+            'query': query,
             'in_cols': in_cols,
             'in_vals': in_vals,
             'col_name': column.column_name,
         }
         sql = """
         MERGE INTO {tmp_table} tmp 
-        USING ({query}) agg
+        USING (\n{query}\n) agg
         ON {on_cols}
         WHEN MATCHED THEN
         UPDATE SET {col_name}=agg.val

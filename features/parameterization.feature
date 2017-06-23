@@ -21,4 +21,4 @@ Feature: Parameterization
       | item |
     And the column test is parameterized
     When I build the DAGs
-    Then the DAG test should have the task aggregate_test_item
+    Then the DAG test should have the task aggregate_test

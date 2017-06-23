@@ -1,6 +1,7 @@
 import airflow.configuration
 import yaml
 from os import path
+from jinja2 import Template
 
 
 class Config(object):
@@ -21,3 +22,19 @@ class Config(object):
             'tables': Config.__load(path.join(conf, 'tables.yml')),
             'columns': Config.__load(path.join(conf, 'columns.yml'))
         }
+
+    template_ignore_keywords = ['ds']
+    template_ignore_mapping = {k: '{{ %s }}' % k for k in template_ignore_keywords}
+
+    @classmethod
+    def render(cls, conf, params):
+        if isinstance(conf, dict):
+            return {k: cls.render(v, params) for k, v in conf.iteritems()}
+        elif isinstance(conf, list):
+            return [cls.render(v, params) for v in conf]
+        elif isinstance(conf, str):
+            render_params = dict()
+            render_params.update(params)
+            render_params.update(cls.template_ignore_mapping)
+            return Template(conf).render(**render_params)
+        return conf
