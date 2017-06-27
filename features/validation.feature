@@ -26,4 +26,3 @@ Feature: Validation
     Examples:
       | attr        |
       | query       |
-      | column_type |
