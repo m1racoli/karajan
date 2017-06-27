@@ -154,14 +154,14 @@ class ExasolEngine(BaseEngine):
     #         queue=self.queue,
     #     )
 
-    # def cleanup_operator(self, task_id, dag, table, agg):
-    #     return ExasolOperator(
-    #         task_id=task_id,
-    #         exasol_conn_id=self.exasol_conn_id,
-    #         dag=dag,
-    #         sql='DROP TABLE IF EXISTS %s' % (self._tmp_table(table)),
-    #         queue=self.queue,
-    #     )
+    def cleanup_operator(self, task_id, dag, table, agg):
+        return ExasolOperator(
+            task_id=task_id,
+            exasol_conn_id=self.exasol_conn_id,
+            dag=dag,
+            sql='DROP TABLE IF EXISTS %s' % (self._aggregation_table_name(table, agg)),
+            queue=self.queue,
+        )
 
     @staticmethod
     def _table(table):
@@ -172,5 +172,5 @@ class ExasolEngine(BaseEngine):
         return '%s_tmp.%s_tmp_{{ ts_nodash }}' % (table.schema, table.name)
 
     @staticmethod
-    def _aggregation_table_name(table, column):
-        return '%s_tmp.%s_agg_%s_{{ ds_nodash }}' % (table.schema, table.name, column.name)
+    def _aggregation_table_name(table, agg):
+        return '%s_tmp.%s_agg_%s_{{ ds_nodash }}' % (table.schema, table.name, agg.name)
