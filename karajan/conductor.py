@@ -31,52 +31,39 @@ class Conductor(object):
 
     def _build_dag(self, engine, table):
         dag = DAG(table.dag_id(self.prefix), start_date=table.start_date)
-        init = engine.init_operator('init', dag, table, self._columns(table))
+        init = engine.init_operator('init', dag)
         done_op = engine.done_operator('done', dag)
-        merge = engine.merge_operator('merge', dag, table)
-        if table.timeseries_key is not None:
-            clear_time_unit = engine.clear_time_unit_operator('clear_%s' % table.timeseries_key, dag, table)
-            clear_time_unit.set_downstream(merge)
-            after_agg = clear_time_unit
-        else:
-            after_agg = merge
-        cleanup = engine.cleanup_operator('cleanup', dag, table)
-        cleanup.set_upstream(merge)
-        cleanup.set_downstream(done_op)
+        prepare_op = engine.prepare_operator('prepare', dag, table)
+        merge_op = engine.merge_operator('merge', dag, table)
+        merge_op.set_upstream(prepare_op)
         dep_ops = {}
-        col_ops = {}
 
-        agg_columns = self._agg_columns(table)
-        for col_id, col in agg_columns.iteritems():
-            col_op = engine.aggregation_operator(col_id, dag, table, col)
-            col_ops[col_id] = col_op
-            col_op.set_downstream(after_agg)
+        for agg_id, agg_columns in table.aggregations.iteritems():
+            agg = self._aggregation(agg_id, table)
+            agg_op = engine.aggregation_operator('aggregate_%s' % agg_id, dag, table, agg)
+            agg_op.set_downstream(prepare_op)
 
             for params in table.param_set():
-
-                for dep in self._get_dependencies(col, params):
+                for dep in self._get_dependencies(agg, params):
                     dep_id = dep.id()
                     if dep_id not in dep_ops:
                         dep_op = engine.dependency_operator(dep_id, dag, dep)
                         dep_ops[dep_id] = dep_op
                         dep_op.set_upstream(init)
-                    col_op.set_upstream(dep_ops[dep_id])
+                    agg_op.set_upstream(dep_ops[dep_id])
+
+            clean_op = engine.cleanup_operator('cleanup_%s' % agg_id, dag, table, agg)
+            clean_op.set_upstream(merge_op)
+            clean_op.set_downstream(done_op)
 
         return dag
 
-    def _columns(self, table):
-        return {k: Column(k, self.conf['columns'][v]) for k, v in table.aggregated_columns.iteritems()}
-
-    def _agg_columns(self, table):
-        cols = {}
-        for column_name, conf_name in table.aggregated_columns.iteritems():
-            col = Aggregation(column_name, self.conf['columns'][conf_name], table)
-            cols[col.id()] = col
-        return cols
+    def _aggregation(self, agg_id, table):
+        return Aggregation(agg_id, self.conf['aggregations'][agg_id], table)
 
     @staticmethod
-    def _get_dependencies(column, params):
-        if column.has_dependencies():
-            return [get_dependency(Config.render(dep_conf, params)) for dep_conf in column.dependencies]
+    def _get_dependencies(agg, params):
+        if agg.has_dependencies():
+            return [get_dependency(Config.render(dep_conf, params)) for dep_conf in agg.dependencies]
         else:
             return [NothingDependency()]

@@ -7,7 +7,7 @@ from karajan.model import DeltaDependency, TrackingDependency, NothingDependency
 
 
 class BaseEngine(object):
-    def init_operator(self, task_id, dag, table, columns):
+    def init_operator(self, task_id, dag):
         return self._dummy_operator(task_id, dag)
 
     def dependency_operator(self, task_id, dag, dep):
@@ -45,16 +45,16 @@ class BaseEngine(object):
             dag=dag,
         )
 
-    def aggregation_operator(self, task_id, dag, table, column):
+    def aggregation_operator(self, task_id, dag, table, agg):
         return self._dummy_operator(task_id, dag)
 
-    def clear_time_unit_operator(self, task_id, dag, table):
+    def prepare_operator(self, task_id, dag, table):
         return self._dummy_operator(task_id, dag)
 
     def merge_operator(self, task_id, dag, table):
         return self._dummy_operator(task_id, dag)
 
-    def cleanup_operator(self, task_id, dag, table):
+    def cleanup_operator(self, task_id, dag, table, agg):
         return self._dummy_operator(task_id, dag)
 
     def done_operator(self, task_id, dag):
@@ -80,59 +80,42 @@ class ExasolEngine(BaseEngine):
                 dep.schema, dep.table)
         )
 
+    _aggregation_query_template = "CREATE TABLE {agg_table} AS {agg_select}"
+
     def _aggregation_query(self, table, column):
         if column.parameterize:
-
             def sub_query(params):
-                sql_params = {
-                    'query': Config.render(column.query, params),
-                    'columns': ',\n'.join(["'%s' as %s" % (params[table.item_key], table.item_key), 'val'] + [c for c in table.key_columns.keys() if c != table.item_key]),
-                }
-                return """SELECT\n{columns}\nFROM ({query}) sub""".format(**sql_params)
-
+                select = Config.render(column.query, params)
+                columns = ',\n'.join(["'%s' as %s" % (params[table.item_key], table.item_key), 'val'] + [c for c in table.key_columns.keys() if c != table.item_key])
+                return self._aggregation_select(select, columns)
             sub_queries = [sub_query(params) for params in table.param_set()]
             query = '\nUNION ALL\n'.join(sub_queries)
         else:
-            sql_params = {
-                'query': Config.render(column.query, table.defaults),
-                'column': ',\n'.join(['val'] + table.key_columns.keys()),
-                'where': '' if not table.item_key else '\nWHERE %s in (%s)' % (table.item_key, ','.join(["'%s'" % i for i in table.key_items()])),
-            }
-            query = """SELECT\n{columns}\nFROM ({query}) sub {where}""".format(**sql_params)
-        key_columns = table.key_columns.keys()
-        on_cols = ' AND '.join(["tmp.%s=agg.%s" % (c, c) for c in key_columns])
-        in_cols = ', '.join(key_columns + [column.column_name])
-        in_vals = ', '.join(["agg.%s" % c for c in (key_columns + ['val'])])
-        params = {
-            'tmp_table': self._tmp_table(table),
-            'on_cols': on_cols,
-            'query': query,
-            'in_cols': in_cols,
-            'in_vals': in_vals,
-            'col_name': column.column_name,
-        }
-        sql = """
-        MERGE INTO {tmp_table} tmp 
-        USING (\n{query}\n) agg
-        ON {on_cols}
-        WHEN MATCHED THEN
-        UPDATE SET {col_name}=agg.val
-        WHEN NOT MATCHED THEN
-        INSERT ({in_cols})
-        VALUES ({in_vals})
-        """.format(**params)
-        return sql
+            select = Config.render(column.query, table.defaults)
+            columns = ',\n'.join(['val'] + table.key_columns.keys())
+            query = self._aggregation_select(select, columns)
+        return self._aggregation_query_template.format(
+            agg_table=self._aggregation_table_name(table, column),
+            agg_select=query
+        )
 
-    def aggregation_operator(self, task_id, dag, table, column):
+    _aggregation_select_template = "SELECT {columns} FROM ({select}) sub"
+
+    def _aggregation_select(self, select, columns):
+        return self._aggregation_select_template.format(select=select, columns=columns)
+
+    def aggregation_operator(self, task_id, dag, table, agg):
         return ExasolOperator(
             task_id=task_id,
             exasol_conn_id=self.exasol_conn_id,
             dag=dag,
-            sql=self._aggregation_query(table, column),
+            sql=self._aggregation_query(table, agg),
             queue=self.queue,
         )
 
-    def clear_time_unit_operator(self, task_id, dag, table):
+    def prepare_operator(self, task_id, dag, table):
+        if not table.is_timeseries():
+            return self._dummy_operator(task_id, dag)
         sql = "DELETE FROM %s WHERE %s = '{{ ds }}'" % (self._table(table), table.timeseries_key)
         return ExasolOperator(
             task_id=task_id,
@@ -142,43 +125,43 @@ class ExasolEngine(BaseEngine):
             queue=self.queue,
         )
 
-    def merge_operator(self, task_id, dag, table):
-        key_columns = table.key_columns.keys()
-        agg_columns = table.aggregated_columns.keys()
-        on_cols = ' AND '.join(["tbl.%s=tmp.%s" % (c, c) for c in key_columns])
-        in_cols = ', '.join(key_columns + agg_columns)
-        in_vals = ', '.join(["tmp.%s" % c for c in (key_columns + agg_columns)])
-        params = {
-            'table': self._table(table),
-            'tmp_table': self._tmp_table(table),
-            'on_cols': on_cols,
-            'in_cols': in_cols,
-            'in_vals': in_vals,
-        }
-        sql = """
-        MERGE INTO {table} tbl
-        USING (SELECT * FROM {tmp_table}) tmp
-        ON {on_cols}
-        WHEN NOT MATCHED THEN
-        INSERT ({in_cols})
-        VALUES ({in_vals})
-        """.format(**params)
-        return ExasolOperator(
-            task_id=task_id,
-            exasol_conn_id=self.exasol_conn_id,
-            dag=dag,
-            sql=sql,
-            queue=self.queue,
-        )
+    # def merge_operator(self, task_id, dag, table):
+    #     key_columns = table.key_columns.keys()
+    #     agg_columns = table.aggregated_columns.keys()
+    #     on_cols = ' AND '.join(["tbl.%s=tmp.%s" % (c, c) for c in key_columns])
+    #     in_cols = ', '.join(key_columns + agg_columns)
+    #     in_vals = ', '.join(["tmp.%s" % c for c in (key_columns + agg_columns)])
+    #     params = {
+    #         'table': self._table(table),
+    #         'tmp_table': self._tmp_table(table),
+    #         'on_cols': on_cols,
+    #         'in_cols': in_cols,
+    #         'in_vals': in_vals,
+    #     }
+    #     sql = """
+    #     MERGE INTO {table} tbl
+    #     USING (SELECT * FROM {tmp_table}) tmp
+    #     ON {on_cols}
+    #     WHEN NOT MATCHED THEN
+    #     INSERT ({in_cols})
+    #     VALUES ({in_vals})
+    #     """.format(**params)
+    #     return ExasolOperator(
+    #         task_id=task_id,
+    #         exasol_conn_id=self.exasol_conn_id,
+    #         dag=dag,
+    #         sql=sql,
+    #         queue=self.queue,
+    #     )
 
-    def cleanup_operator(self, task_id, dag, table):
-        return ExasolOperator(
-            task_id=task_id,
-            exasol_conn_id=self.exasol_conn_id,
-            dag=dag,
-            sql='DROP TABLE IF EXISTS %s' % (self._tmp_table(table)),
-            queue=self.queue,
-        )
+    # def cleanup_operator(self, task_id, dag, table, agg):
+    #     return ExasolOperator(
+    #         task_id=task_id,
+    #         exasol_conn_id=self.exasol_conn_id,
+    #         dag=dag,
+    #         sql='DROP TABLE IF EXISTS %s' % (self._tmp_table(table)),
+    #         queue=self.queue,
+    #     )
 
     @staticmethod
     def _table(table):
@@ -187,3 +170,7 @@ class ExasolEngine(BaseEngine):
     @staticmethod
     def _tmp_table(table):
         return '%s_tmp.%s_tmp_{{ ts_nodash }}' % (table.schema, table.name)
+
+    @staticmethod
+    def _aggregation_table_name(table, column):
+        return '%s_tmp.%s_agg_%s_{{ ds_nodash }}' % (table.schema, table.name, column.name)

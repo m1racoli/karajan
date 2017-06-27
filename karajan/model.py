@@ -20,8 +20,6 @@ class Table(ModelBase):
 
     def validate(self):
         validate_presence(self, 'schema')
-        validate_not_empty(self, 'key_columns')
-        validate_not_empty(self, 'aggregated_columns')
         super(Table, self).validate()
 
 
@@ -29,8 +27,8 @@ class AggregatedTable(Table):
     def __init__(self, name, conf):
         self.start_date = self._date_time(conf.get('start_date'))
         self.key_columns = {n: Column(n, c) for n, c in conf.get('key_columns', {}).iteritems()}
-        self._aggregated_columns = \
-            {agg_id: {cname: AggregatedColumn(agg_id, cname, conf) for cname, conf in agg_columns.iteritem()}
+        self.aggregations = \
+            {agg_id: {cname: AggregatedColumn(agg_id, cname, conf) for cname, conf in agg_columns.iteritems()}
              for agg_id, agg_columns in
              conf.get('aggregated_columns', {}).iteritems()}
         self.items = conf.get('items', [{}])
@@ -47,6 +45,8 @@ class AggregatedTable(Table):
 
     def validate(self):
         validate_presence(self, 'start_date')
+        validate_not_empty(self, 'key_columns')
+        validate_not_empty(self, 'aggregations', 'aggregated_columns')
         super(AggregatedTable, self).validate()
 
     @staticmethod
@@ -68,10 +68,13 @@ class AggregatedTable(Table):
         return [i[self.item_key] for i in self.items]
 
     def aggregated_columns(self, aggregation_id):
-        return self._aggregated_columns.get(aggregation_id)
+        return self.aggregations.get(aggregation_id)
 
     def aggregation_ids(self):
-        return self._aggregated_columns.keys()
+        return self.aggregations.keys()
+
+    def is_timeseries(self):
+        return self.timeseries_key is not None
 
 
 class AggregatedColumn(ModelBase):
@@ -117,6 +120,7 @@ class Aggregation(ModelBase):
         self.query = conf.get('query', '')
         self.dependencies = conf.get('dependencies')
         self.parameterize = self._check_parameterize(table)
+        self.columns = table.aggregated_columns(name)
         super(Aggregation, self).__init__(name)
 
     def validate(self):
@@ -132,9 +136,6 @@ class Aggregation(ModelBase):
     @staticmethod
     def _param_regex(name):
         return re.compile('^.*{{ *%s *}}.*$' % name)
-
-    def id(self):
-        return ("aggregate_%s" % self.name).lower()
 
     def has_dependencies(self):
         return self.dependencies is not None
