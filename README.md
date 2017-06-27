@@ -49,16 +49,16 @@ user_logins:
   query: |
     SELECT
       CREATED_DATE as activity_date,
-      {{ params.userid }} as userid,
+      {{ userid }} as userid,
       LAST_VALUE(COUNTRY) as country,
       COUNT(*) as logins
     FROM
-      {{ params.game_key }}.APP_LOGINS
+      {{ game_key }}.APP_LOGINS
     WHERE CREATED_DATE = '{{ ds }}'
     GROUP BY 1,2
   dependencies:
     - type: tracking
-      schema: '{{ params.game_key }}'
+      schema: '{{ game_key }}'
       table: APP_LOGINS
     - type: delta
       delta: 30d
@@ -75,7 +75,7 @@ user_logins:
 
 ```yaml
 type: tracking
-schema: '{{ params.game_key }}'
+schema: '{{ game_key }}'
 table: APP_LOGINS
 ```
 
