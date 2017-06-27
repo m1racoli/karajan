@@ -33,14 +33,15 @@ def min_config():
                     'key_column': 'VARCHAR(100)',
                 },
                 'aggregated_columns': {
-                    'test': 'test',
+                    'test_source': {
+                        'test_val': None,
+                    },
                 }
             }
         },
         'columns': {
-            'test': {
-                'query': "SELECT 'key' AS key_column, 'val' AS val FROM DUAL",
-                'column_type': 'VARCHAR(100)',
+            'test_source': {
+                'query': "SELECT 'key' AS key_column, 'test_val' AS test_val FROM DUAL",
             }
         },
     }
