@@ -70,23 +70,6 @@ class ExasolEngine(BaseEngine):
         self.exasol_conn_id = exasol_conn_id
         self.queue = queue
 
-    def init_operator(self, task_id, dag, table, columns):
-        key_columns = ["%s %s" % (k, v.column_type) for k, v in table.key_columns.iteritems()]
-        agg_columns = ["%s %s" % (k, v.column_type) for k, v in columns.iteritems()]
-        col_str = ',\n'.join(key_columns + agg_columns)
-        sql = """
-        CREATE OR REPLACE TABLE %s (
-        %s
-        )
-        """ % (self._tmp_table(table), col_str)
-        return ExasolOperator(
-            task_id=task_id,
-            exasol_conn_id=self.exasol_conn_id,
-            dag=dag,
-            sql=sql,
-            queue=self.queue,
-        )
-
     def tracking_dependency_operator(self, task_id, dag, dep):
         return SqlSensor(
             task_id=task_id,
