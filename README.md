@@ -89,3 +89,16 @@ table: APP_LOGINS
 type: delta
 delta: 2h
 ```
+
+#### Task
+
+| name | purpose |
+| ---- | ------- |
+| dag_id | dag id of the task to wait for |
+| task_id | task_id of the task to wait for |
+
+```yaml
+type: task
+task_id: fill_bookings
+dag_id: '{{ game_key }}'
+```
