@@ -8,7 +8,7 @@ from karajan.model import DeltaDependency, TrackingDependency, NothingDependency
 
 class BaseEngine(object):
     def init_operator(self, task_id, dag, table, columns):
-        return DummyOperator(task_id=task_id, dag=dag)
+        return self._dummy_operator(task_id, dag)
 
     def dependency_operator(self, task_id, dag, dep):
         if isinstance(dep, DeltaDependency):
@@ -16,26 +16,28 @@ class BaseEngine(object):
         elif isinstance(dep, TrackingDependency):
             return self.tracking_dependency_operator(task_id, dag, dep)
         elif isinstance(dep, NothingDependency):
-            return self.nothing_dependency_operator(task_id, dag, dep)
+            return self.nothing_dependency_operator(task_id, dag)
         elif isinstance(dep, TaskDependency):
             return self.task_dependency_operator(task_id, dag, dep)
         else:
             raise "Dependency operator for %s not found" % type(dep)
 
-    def delta_dependency_operator(self, task_id, dag, dep):
+    @staticmethod
+    def delta_dependency_operator(task_id, dag, dep):
         return TimeDeltaSensor(
             task_id=task_id,
             dag=dag,
             delta=dep.delta,
         )
 
-    def nothing_dependency_operator(self, task_id, dag, dep):
-        return DummyOperator(task_id=task_id, dag=dag)
+    def nothing_dependency_operator(self, task_id, dag):
+        return self._dummy_operator(task_id, dag)
 
     def tracking_dependency_operator(self, task_id, dag, dep):
-        return DummyOperator(task_id=task_id, dag=dag)
+        return self._dummy_operator(task_id, dag)
 
-    def task_dependency_operator(self, task_id, dag, dep):
+    @staticmethod
+    def task_dependency_operator(task_id, dag, dep):
         return ExternalTaskSensor(
             task_id=task_id,
             external_task_id=dep.task_id,
@@ -44,15 +46,22 @@ class BaseEngine(object):
         )
 
     def aggregation_operator(self, task_id, dag, table, column):
-        return DummyOperator(task_id=task_id, dag=dag)
+        return self._dummy_operator(task_id, dag)
 
     def clear_time_unit_operator(self, task_id, dag, table):
-        return DummyOperator(task_id=task_id, dag=dag)
+        return self._dummy_operator(task_id, dag)
 
     def merge_operator(self, task_id, dag, table):
-        return DummyOperator(task_id=task_id, dag=dag)
+        return self._dummy_operator(task_id, dag)
 
     def cleanup_operator(self, task_id, dag, table):
+        return self._dummy_operator(task_id, dag)
+
+    def done_operator(self, task_id, dag):
+        return self._dummy_operator(task_id, dag)
+
+    @staticmethod
+    def _dummy_operator(task_id, dag):
         return DummyOperator(task_id=task_id, dag=dag)
 
 

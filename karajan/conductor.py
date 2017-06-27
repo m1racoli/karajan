@@ -32,6 +32,7 @@ class Conductor(object):
     def _build_dag(self, engine, table):
         dag = DAG(table.dag_id(self.prefix), start_date=table.start_date)
         init = engine.init_operator('init', dag, table, self._columns(table))
+        done_op = engine.done_operator('done', dag)
         merge = engine.merge_operator('merge', dag, table)
         if table.timeseries_key is not None:
             clear_time_unit = engine.clear_time_unit_operator('clear_%s' % table.timeseries_key, dag, table)
@@ -41,6 +42,7 @@ class Conductor(object):
             after_agg = merge
         cleanup = engine.cleanup_operator('cleanup', dag, table)
         cleanup.set_upstream(merge)
+        cleanup.set_downstream(done_op)
         dep_ops = {}
         col_ops = {}
 
