@@ -20,7 +20,7 @@ class Config(object):
 
         return {
             'tables': Config.__load(path.join(conf, 'tables.yml')),
-            'columns': Config.__load(path.join(conf, 'columns.yml'))
+            'aggregations': Config.__load(path.join(conf, 'aggregations.yml'))
         }
 
     template_ignore_keywords = ['ds']
