@@ -41,28 +41,27 @@ daily_user_activities:
 | name | required | purpose | default |
 | ---- | -------- | ------- | ------- |
 | query | required | aggregation query |
-| column_type | required | column type of the aggregated column |
 | dependencies | optional | a list of dependencies |
 
 #### columns.yml
 ```yaml
-user_country:
+user_logins:
   query: |
     SELECT
       CREATED_DATE as activity_date,
       {{ params.userid }} as userid,
-      LAST_VALUE(COUNTRY) as value
+      LAST_VALUE(COUNTRY) as country,
+      COUNT(*) as logins
     FROM
       {{ params.game_key }}.APP_LOGINS
     WHERE CREATED_DATE = '{{ ds }}'
-    GROUP BY 1,2,3
+    GROUP BY 1,2
   dependencies:
     - type: tracking
       schema: '{{ params.game_key }}'
       table: APP_LOGINS
     - type: delta
       delta: 30d
-  column_type: VARCHAR(2)
 ```
 
 ### Dependencies
