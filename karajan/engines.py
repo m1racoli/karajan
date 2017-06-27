@@ -97,7 +97,7 @@ class ExasolEngine(BaseEngine):
                 dep.schema, dep.table)
         )
 
-    def aggregation_operator(self, task_id, dag, table, column):
+    def _aggregation_query(self, table, column):
         if column.parameterize:
 
             def sub_query(params):
@@ -138,11 +138,14 @@ class ExasolEngine(BaseEngine):
         INSERT ({in_cols})
         VALUES ({in_vals})
         """.format(**params)
+        return sql
+
+    def aggregation_operator(self, task_id, dag, table, column):
         return ExasolOperator(
             task_id=task_id,
             exasol_conn_id=self.exasol_conn_id,
             dag=dag,
-            sql=sql,
+            sql=self._aggregation_query(table, column),
             queue=self.queue,
         )
 
