@@ -7,4 +7,5 @@ Feature: Timeseries
   Scenario: Timeseries key
     Given the table test has a timeseries key datum
     When I build the DAGs
-    Then the DAG test should have the task clear_datum
+    Then the DAG test should have the task prepare
+    And the task prepare of test should be of type DummyOperator
