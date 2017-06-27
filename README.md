@@ -26,7 +26,9 @@ daily_user_activities:
     activity_date: DATE
     userid: DECIMAL(36,0)
   aggregated_columns:
-    country: user_country
+    user_logins:
+      country:
+      logins:
   timeseries_key: activity_date
   items:
     - { game_key: g9i }
