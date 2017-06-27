@@ -65,6 +65,15 @@ class BaseEngine(object):
         return DummyOperator(task_id=task_id, dag=dag)
 
 
+def _aggregation_select_columns(table, agg, item_val=None, item_key=None):
+    if item_val is not None and item_key is not None:
+        key_columns = [c if c != item_key else "'%s' as %s" % (item_val, item_key) for c in table.key_columns.keys()]
+    else:
+        key_columns = table.key_columns.keys()
+    agg_columns = ["%s as %s" % (c.src_column_name, c.column_name) for c in agg.columns.values()]
+    return key_columns + agg_columns
+
+
 class ExasolEngine(BaseEngine):
     def __init__(self, exasol_conn_id=None, queue='default'):
         self.exasol_conn_id = exasol_conn_id
@@ -80,29 +89,30 @@ class ExasolEngine(BaseEngine):
                 dep.schema, dep.table)
         )
 
-    _aggregation_query_template = "CREATE TABLE {agg_table} AS {agg_select}"
+    _aggregation_query_template = "CREATE TABLE {agg_table} AS\n{agg_select}"
 
-    def _aggregation_query(self, table, column):
-        if column.parameterize:
-            def sub_query(params):
-                select = Config.render(column.query, params)
-                columns = ',\n'.join(["'%s' as %s" % (params[table.item_key], table.item_key), 'val'] + [c for c in table.key_columns.keys() if c != table.item_key])
+    def _aggregation_query(self, table, agg):
+        if agg.parameterize:
+            def sub_query(p):
+                select = Config.render(agg.query, p)
+                columns = ',\n'.join(_aggregation_select_columns(table, agg, p[table.item_key], table.item_key))
                 return self._aggregation_select(select, columns)
             sub_queries = [sub_query(params) for params in table.param_set()]
             query = '\nUNION ALL\n'.join(sub_queries)
         else:
-            select = Config.render(column.query, table.defaults)
-            columns = ',\n'.join(['val'] + table.key_columns.keys())
-            query = self._aggregation_select(select, columns)
+            select = Config.render(agg.query, table.defaults)
+            columns = ',\n'.join(_aggregation_select_columns(table, agg))
+            where = '\nWHERE %s in (%s)' % (table.item_key, ', '.join(["'%s'" % i[table.item_key] for i in table.items]))
+            query = self._aggregation_select(select, columns, where)
         return self._aggregation_query_template.format(
-            agg_table=self._aggregation_table_name(table, column),
+            agg_table=self._aggregation_table_name(table, agg),
             agg_select=query
         )
 
-    _aggregation_select_template = "SELECT {columns} FROM ({select}) sub"
+    _aggregation_select_template = "SELECT\n{columns}\nFROM ({select}) sub {where}"
 
-    def _aggregation_select(self, select, columns):
-        return self._aggregation_select_template.format(select=select, columns=columns)
+    def _aggregation_select(self, select, columns, where=''):
+        return self._aggregation_select_template.format(select=select, columns=columns, where=where)
 
     def aggregation_operator(self, task_id, dag, table, agg):
         return ExasolOperator(
