@@ -5,7 +5,7 @@ Feature: Dependencies
     Given a minimal config
 
   Scenario Outline: Supported dependencies
-    Given the column test has a <dep_type> dependency
+    Given the aggregation test has a <dep_type> dependency
     When I build the DAGs
     Then the DAG test should have the task <task_id>
 

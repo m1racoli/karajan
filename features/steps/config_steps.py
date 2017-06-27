@@ -22,15 +22,15 @@ def step_impl(context, model, id):
         conf['items'].append({k: row[k] for k in row.headings})
 
 
-@given(u'the column {id} is parameterized')
+@given(u'the aggregation {id} is parameterized')
 def step_impl(context, id):
-    conf = get_column_conf(context).get(id)
+    conf = get_aggregation_conf(context).get(id)
     conf['query'] = conf.get('query').replace('key', '{{ key }}')
 
 
-@given(u'the column {id} has a {dep_type} dependency')
+@given(u'the aggregation {id} has a {dep_type} dependency')
 def step_impl(context, id, dep_type):
-    conf = get_column_conf(context).get(id)
+    conf = get_aggregation_conf(context).get(id)
     conf['dependencies'] = conf.get('dependencies', [])
     conf['dependencies'].append(min_dependency_config(dep_type))
 

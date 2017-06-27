@@ -5,7 +5,7 @@ def get_conf(context):
     if 'conf' not in context:
         context.conf = {
             'tables': {},
-            'columns': {},
+            'aggregations': {},
         }
     return context.conf
 
@@ -15,8 +15,8 @@ def get_model_conf(context, model):
     return conf.get('%ss' % model)
 
 
-def get_column_conf(context):
-    return get_model_conf(context, 'column')
+def get_aggregation_conf(context):
+    return get_model_conf(context, 'aggregation')
 
 
 def get_table_conf(context):
@@ -33,14 +33,14 @@ def min_config():
                     'key_column': 'VARCHAR(100)',
                 },
                 'aggregated_columns': {
-                    'test_source': {
+                    'test': {
                         'test_val': None,
                     },
                 }
             }
         },
-        'columns': {
-            'test_source': {
+        'aggregations': {
+            'test': {
                 'query': "SELECT 'key' AS key_column, 'test_val' AS test_val FROM DUAL",
             }
         },

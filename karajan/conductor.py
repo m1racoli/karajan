@@ -2,7 +2,7 @@ from airflow.models import DAG
 
 from karajan.config import Config
 from karajan.engines import BaseEngine
-from karajan.model import AggregatedTable, AggregatedColumn, Column, NothingDependency, get_dependency
+from karajan.model import AggregatedTable, Aggregation, Column, NothingDependency, get_dependency
 
 
 class Conductor(object):
@@ -70,7 +70,7 @@ class Conductor(object):
     def _agg_columns(self, table):
         cols = {}
         for column_name, conf_name in table.aggregated_columns.iteritems():
-            col = AggregatedColumn(column_name, self.conf['columns'][conf_name], table)
+            col = Aggregation(column_name, self.conf['columns'][conf_name], table)
             cols[col.id()] = col
         return cols
 

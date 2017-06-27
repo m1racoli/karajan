@@ -78,17 +78,17 @@ class Column(ModelBase):
         super(Column, self).validate()
 
 
-class AggregatedColumn(Column):
+class Aggregation(ModelBase):
     def __init__(self, name, conf, table):
         self.query = conf.get('query', '')
         self.dependencies = conf.get('dependencies')
         self.parameterize = self._check_parameterize(table)
         self.column_name = name
-        super(AggregatedColumn, self).__init__(name, conf)
+        super(Aggregation, self).__init__(name)
 
     def validate(self):
         validate_presence(self, 'query')
-        super(AggregatedColumn, self).validate()
+        super(Aggregation, self).validate()
 
     def _check_parameterize(self, table):
         query = self.query.replace('\n',' ') # wildcard doesn't match linebreaks
