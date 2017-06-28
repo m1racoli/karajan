@@ -3,7 +3,7 @@ A conductor of aggregations in Apache Airflow
 
 ## Model
 
-### Table
+### Tables
 
 | name | required | purpose | default |
 | ---- | -------- | ------- | ------- |
@@ -26,7 +26,9 @@ daily_user_activities:
     activity_date: DATE
     userid: DECIMAL(36,0)
   aggregated_columns:
-    country: user_country
+    user_logins:
+      country:
+      logins:
   timeseries_key: activity_date
   items:
     - { game_key: g9i }
@@ -36,33 +38,32 @@ daily_user_activities:
   item_key: game_key
 ```
 
-### Column
+### Aggregations
 
 | name | required | purpose | default |
 | ---- | -------- | ------- | ------- |
 | query | required | aggregation query |
-| column_type | required | column type of the aggregated column |
 | dependencies | optional | a list of dependencies |
 
-#### columns.yml
+#### aggregations.yml
 ```yaml
-user_country:
+user_logins:
   query: |
     SELECT
       CREATED_DATE as activity_date,
-      {{ params.userid }} as userid,
-      LAST_VALUE(COUNTRY) as value
+      {{ userid }} as userid,
+      LAST_VALUE(COUNTRY) as country,
+      COUNT(*) as logins
     FROM
-      {{ params.game_key }}.APP_LOGINS
+      {{ game_key }}.APP_LOGINS
     WHERE CREATED_DATE = '{{ ds }}'
-    GROUP BY 1,2,3
+    GROUP BY 1,2
   dependencies:
     - type: tracking
-      schema: '{{ params.game_key }}'
+      schema: '{{ game_key }}'
       table: APP_LOGINS
     - type: delta
       delta: 30d
-  column_type: VARCHAR(2)
 ```
 
 ### Dependencies
@@ -76,7 +77,7 @@ user_country:
 
 ```yaml
 type: tracking
-schema: '{{ params.game_key }}'
+schema: '{{ game_key }}'
 table: APP_LOGINS
 ```
 
@@ -89,4 +90,17 @@ table: APP_LOGINS
 ```yaml
 type: delta
 delta: 2h
+```
+
+#### Task
+
+| name | purpose |
+| ---- | ------- |
+| dag_id | dag id of the task to wait for |
+| task_id | task_id of the task to wait for |
+
+```yaml
+type: task
+task_id: fill_bookings
+dag_id: '{{ game_key }}'
 ```

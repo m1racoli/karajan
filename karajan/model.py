@@ -20,8 +20,6 @@ class Table(ModelBase):
 
     def validate(self):
         validate_presence(self, 'schema')
-        validate_not_empty(self, 'key_columns')
-        validate_not_empty(self, 'aggregated_columns')
         super(Table, self).validate()
 
 
@@ -29,7 +27,10 @@ class AggregatedTable(Table):
     def __init__(self, name, conf):
         self.start_date = self._date_time(conf.get('start_date'))
         self.key_columns = {n: Column(n, c) for n, c in conf.get('key_columns', {}).iteritems()}
-        self.aggregated_columns = conf.get('aggregated_columns', {})
+        self.aggregations = \
+            {agg_id: {cname: AggregatedColumn(agg_id, cname, conf) for cname, conf in agg_columns.iteritems()}
+             for agg_id, agg_columns in
+             conf.get('aggregated_columns', {}).iteritems()}
         self.items = conf.get('items', [{}])
         self.defaults = conf.get('defaults', {})
         self.item_key = conf.get('item_key')
@@ -44,6 +45,8 @@ class AggregatedTable(Table):
 
     def validate(self):
         validate_presence(self, 'start_date')
+        validate_not_empty(self, 'key_columns')
+        validate_not_empty(self, 'aggregations', 'aggregated_columns')
         super(AggregatedTable, self).validate()
 
     @staticmethod
@@ -64,6 +67,40 @@ class AggregatedTable(Table):
     def key_items(self):
         return [i[self.item_key] for i in self.items]
 
+    def aggregated_columns(self, aggregation_id):
+        return self.aggregations.get(aggregation_id)
+
+    def aggregation_ids(self):
+        return self.aggregations.keys()
+
+    def is_timeseries(self):
+        return self.timeseries_key is not None
+
+
+class AggregatedColumn(ModelBase):
+    replace_update_type = 'REPLACE'
+    _default_update_type = replace_update_type
+
+    def __init__(self, aggregation_id, column_name, conf):
+        self.aggregation_id = aggregation_id
+        self.column_name = column_name
+        if conf is None:
+            self.src_column_name = self.column_name
+            self.update_type = self._default_update_type
+        elif isinstance(conf, str):
+            self.src_column_name = conf
+            self.update_type = self._default_update_type
+        else:
+            self.src_column_name = conf.get('column_name', self.column_name)
+            self.update_type = conf.get('update_type', self._default_update_type)
+        super(AggregatedColumn, self).__init__(column_name)
+
+    def validate(self):
+        validate_presence(self, 'aggregation_id')
+        validate_presence(self, 'column_name')
+        validate_presence(self, 'src_column_name')
+        super(AggregatedColumn, self).validate()
+
 
 class Column(ModelBase):
     def __init__(self, name, conf):
@@ -78,20 +115,20 @@ class Column(ModelBase):
         super(Column, self).validate()
 
 
-class AggregatedColumn(Column):
+class Aggregation(ModelBase):
     def __init__(self, name, conf, table):
         self.query = conf.get('query', '')
         self.dependencies = conf.get('dependencies')
         self.parameterize = self._check_parameterize(table)
-        self.column_name = name
-        super(AggregatedColumn, self).__init__(name, conf)
+        self.columns = table.aggregated_columns(name)
+        super(Aggregation, self).__init__(name)
 
     def validate(self):
         validate_presence(self, 'query')
-        super(AggregatedColumn, self).validate()
+        super(Aggregation, self).validate()
 
     def _check_parameterize(self, table):
-        query = self.query.replace('\n',' ') # wildcard doesn't match linebreaks
+        query = self.query.replace('\n', ' ')  # wildcard doesn't match linebreaks
         if self._param_regex(table.item_key).match(query):
             return True
         return False
@@ -99,9 +136,6 @@ class AggregatedColumn(Column):
     @staticmethod
     def _param_regex(name):
         return re.compile('^.*{{ *%s *}}.*$' % name)
-
-    def id(self):
-        return ("aggregate_%s" % self.name).lower()
 
     def has_dependencies(self):
         return self.dependencies is not None
