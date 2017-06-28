@@ -78,8 +78,8 @@ class AggregatedTable(Table):
 
 
 class AggregatedColumn(ModelBase):
-    _replace_update_type = 'REPLACE'
-    _default_update_type = _replace_update_type
+    replace_update_type = 'REPLACE'
+    _default_update_type = replace_update_type
 
     def __init__(self, aggregation_id, column_name, conf):
         self.aggregation_id = aggregation_id

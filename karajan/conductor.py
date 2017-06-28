@@ -31,17 +31,13 @@ class Conductor(object):
 
     def _build_dag(self, engine, table):
         dag = DAG(table.dag_id(self.prefix), start_date=table.start_date)
-        init = engine.init_operator('init', dag)
+        init = engine.init_operator('init', dag, table)
         done_op = engine.done_operator('done', dag)
-        prepare_op = engine.prepare_operator('prepare', dag, table)
-        merge_op = engine.merge_operator('merge', dag, table)
-        merge_op.set_upstream(prepare_op)
         dep_ops = {}
 
         for agg_id, agg_columns in table.aggregations.iteritems():
             agg = self._aggregation(agg_id, table)
             agg_op = engine.aggregation_operator('aggregate_%s' % agg_id, dag, table, agg)
-            agg_op.set_downstream(prepare_op)
 
             for params in table.param_set():
                 for dep in self._get_dependencies(agg, params):
@@ -51,6 +47,9 @@ class Conductor(object):
                         dep_ops[dep_id] = dep_op
                         dep_op.set_upstream(init)
                     agg_op.set_upstream(dep_ops[dep_id])
+
+            merge_op = engine.merge_operator('merge_%s' % agg_id, dag, table, agg)
+            merge_op.set_upstream(agg_op)
 
             clean_op = engine.cleanup_operator('cleanup_%s' % agg_id, dag, table, agg)
             clean_op.set_upstream(merge_op)

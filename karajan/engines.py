@@ -3,11 +3,11 @@ from airflow.operators.exasol_operator import ExasolOperator
 from airflow.operators.sensors import SqlSensor, TimeDeltaSensor, ExternalTaskSensor
 
 from karajan.config import Config
-from karajan.model import DeltaDependency, TrackingDependency, NothingDependency, TaskDependency
+from karajan.model import DeltaDependency, TrackingDependency, NothingDependency, TaskDependency, AggregatedColumn
 
 
 class BaseEngine(object):
-    def init_operator(self, task_id, dag):
+    def init_operator(self, task_id, dag, table):
         return self._dummy_operator(task_id, dag)
 
     def dependency_operator(self, task_id, dag, dep):
@@ -48,10 +48,7 @@ class BaseEngine(object):
     def aggregation_operator(self, task_id, dag, table, agg):
         return self._dummy_operator(task_id, dag)
 
-    def prepare_operator(self, task_id, dag, table):
-        return self._dummy_operator(task_id, dag)
-
-    def merge_operator(self, task_id, dag, table):
+    def merge_operator(self, task_id, dag, table, agg):
         return self._dummy_operator(task_id, dag)
 
     def cleanup_operator(self, task_id, dag, table, agg):
@@ -111,6 +108,8 @@ class ExasolEngine(BaseEngine):
 
     _aggregation_select_template = "SELECT\n{columns}\nFROM ({select}) sub {where}"
 
+
+
     def _aggregation_select(self, select, columns, where=''):
         return self._aggregation_select_template.format(select=select, columns=columns, where=where)
 
@@ -123,7 +122,7 @@ class ExasolEngine(BaseEngine):
             queue=self.queue,
         )
 
-    def prepare_operator(self, task_id, dag, table):
+    def init_operator(self, task_id, dag, table):
         if not table.is_timeseries():
             return self._dummy_operator(task_id, dag)
         sql = "DELETE FROM %s WHERE %s = '{{ ds }}'" % (self._table(table), table.timeseries_key)
@@ -135,34 +134,54 @@ class ExasolEngine(BaseEngine):
             queue=self.queue,
         )
 
-    # def merge_operator(self, task_id, dag, table):
-    #     key_columns = table.key_columns.keys()
-    #     agg_columns = table.aggregated_columns.keys()
-    #     on_cols = ' AND '.join(["tbl.%s=tmp.%s" % (c, c) for c in key_columns])
-    #     in_cols = ', '.join(key_columns + agg_columns)
-    #     in_vals = ', '.join(["tmp.%s" % c for c in (key_columns + agg_columns)])
-    #     params = {
-    #         'table': self._table(table),
-    #         'tmp_table': self._tmp_table(table),
-    #         'on_cols': on_cols,
-    #         'in_cols': in_cols,
-    #         'in_vals': in_vals,
-    #     }
-    #     sql = """
-    #     MERGE INTO {table} tbl
-    #     USING (SELECT * FROM {tmp_table}) tmp
-    #     ON {on_cols}
-    #     WHEN NOT MATCHED THEN
-    #     INSERT ({in_cols})
-    #     VALUES ({in_vals})
-    #     """.format(**params)
-    #     return ExasolOperator(
-    #         task_id=task_id,
-    #         exasol_conn_id=self.exasol_conn_id,
-    #         dag=dag,
-    #         sql=sql,
-    #         queue=self.queue,
-    #     )
+    def _merge_select(self, table):
+        key_columns = table.key_columns.keys()
+        agg_columns = [c for agg in table.aggregations.values() for c in agg]
+        columns = ', '.join(key_columns + agg_columns)
+        aggregations = table.aggregations.keys()
+        first_agg = aggregations.pop(0)
+        outer_join = '\nOUTER JOIN '.join([first_agg] + ["%s ON (%s)" % (a,'') for a in aggregations])
+        return "SELECT {columns}\nFROM {outer_join}".format(columns=columns, outer_join=outer_join)
+
+    _merge_query_template = """
+        MERGE INTO {table} tbl
+        USING (SELECT {in_cols} FROM {agg_table}) tmp
+        ON {on_cols}
+        WHEN MATCHED THEN
+        UPDATE SET {set_cols}
+        WHEN NOT MATCHED THEN
+        INSERT ({in_cols})
+        VALUES ({in_vals})
+        """
+
+    def merge_operator(self, task_id, dag, table, agg):
+        key_columns = table.key_columns.keys()
+        agg_columns = [c for c in agg.columns.keys()]
+        on_cols = ' AND '.join(["tbl.%s=tmp.%s" % (c, c) for c in key_columns])
+        in_cols = ', '.join(key_columns + agg_columns)
+        in_vals = ', '.join(["tmp.%s" % c for c in (key_columns + agg_columns)])
+
+        def update_op(agg_col):
+            if agg_col.update_type == AggregatedColumn.replace_update_type:
+                return "tbl.%s = tmp.%s" % (agg_col.name, agg_col.name)
+            return None
+
+        set_cols = ', '.join([update_op(c) for c in agg.columns.values() if update_op(c) is not None])
+        sql = self._merge_query_template.format(
+            table=self._table(table),
+            agg_table=self._aggregation_table_name(table, agg),
+            on_cols=on_cols,
+            in_cols=in_cols,
+            in_vals=in_vals,
+            set_cols=set_cols
+        )
+        return ExasolOperator(
+            task_id=task_id,
+            exasol_conn_id=self.exasol_conn_id,
+            dag=dag,
+            sql=sql,
+            queue=self.queue,
+        )
 
     def cleanup_operator(self, task_id, dag, table, agg):
         return ExasolOperator(
