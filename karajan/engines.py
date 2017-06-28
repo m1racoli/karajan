@@ -1,5 +1,7 @@
+from datetime import timedelta
+
 from airflow.operators.dummy_operator import DummyOperator
-from airflow.operators.exasol_operator import ExasolOperator
+from airflow.operators.jdbc_operator import JdbcOperator
 from airflow.operators.sensors import SqlSensor, TimeDeltaSensor, ExternalTaskSensor
 
 from karajan.config import Config
@@ -72,18 +74,23 @@ def _aggregation_select_columns(table, agg, item_val=None, item_key=None):
 
 
 class ExasolEngine(BaseEngine):
-    def __init__(self, exasol_conn_id=None, queue='default'):
-        self.exasol_conn_id = exasol_conn_id
-        self.queue = queue
+    def __init__(self, conn_id=None, queue='default', retries=12, retry_delay=timedelta(seconds=300), autocommit=True):
+        self.conn_id = conn_id
+        self.autocommit = autocommit
+        self.task_attributes = {
+            'retries': retries,
+            'retry_delay': retry_delay,
+            'queue': queue,
+        }
 
     def tracking_dependency_operator(self, task_id, dag, dep):
         return SqlSensor(
             task_id=task_id,
             dag=dag,
-            conn_id=self.exasol_conn_id,
-            queue=self.queue,
+            conn_id=self.conn_id,
             sql="SELECT DISTINCT created_date FROM %s.%s WHERE CREATED_DATE='{{ macros.ds_add(ds, +1) }}'" % (
-                dep.schema, dep.table)
+                dep.schema, dep.table),
+            **self.task_attributes
         )
 
     _aggregation_query_template = "CREATE TABLE {agg_table} AS\n{agg_select}"
@@ -108,30 +115,30 @@ class ExasolEngine(BaseEngine):
 
     _aggregation_select_template = "SELECT\n{columns}\nFROM ({select}) sub {where}"
 
-
-
     def _aggregation_select(self, select, columns, where=''):
         return self._aggregation_select_template.format(select=select, columns=columns, where=where)
 
     def aggregation_operator(self, task_id, dag, table, agg):
-        return ExasolOperator(
+        return JdbcOperator(
             task_id=task_id,
-            exasol_conn_id=self.exasol_conn_id,
+            jdbc_conn_id=self.conn_id,
             dag=dag,
             sql=self._aggregation_query(table, agg),
-            queue=self.queue,
+            autocommit=self.autocommit,
+            **self.task_attributes
         )
 
     def init_operator(self, task_id, dag, table):
         if not table.is_timeseries():
             return self._dummy_operator(task_id, dag)
         sql = "DELETE FROM %s WHERE %s = '{{ ds }}'" % (self._table(table), table.timeseries_key)
-        return ExasolOperator(
+        return JdbcOperator(
             task_id=task_id,
-            exasol_conn_id=self.exasol_conn_id,
+            jdbc_conn_id=self.conn_id,
             dag=dag,
             sql=sql,
-            queue=self.queue,
+            autocommit=self.autocommit,
+            **self.task_attributes
         )
 
     def _merge_select(self, table):
@@ -175,21 +182,23 @@ class ExasolEngine(BaseEngine):
             in_vals=in_vals,
             set_cols=set_cols
         )
-        return ExasolOperator(
+        return JdbcOperator(
             task_id=task_id,
-            exasol_conn_id=self.exasol_conn_id,
+            jdbc_conn_id=self.conn_id,
             dag=dag,
             sql=sql,
-            queue=self.queue,
+            autocommit=self.autocommit,
+            **self.task_attributes
         )
 
     def cleanup_operator(self, task_id, dag, table, agg):
-        return ExasolOperator(
+        return JdbcOperator(
             task_id=task_id,
-            exasol_conn_id=self.exasol_conn_id,
+            jdbc_conn_id=self.conn_id,
             dag=dag,
             sql='DROP TABLE IF EXISTS %s' % (self._aggregation_table_name(table, agg)),
-            queue=self.queue,
+            autocommit=self.autocommit,
+            **self.task_attributes
         )
 
     @staticmethod
