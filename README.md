@@ -3,7 +3,7 @@ A conductor of aggregations in Apache Airflow
 
 ## Model
 
-### Table
+### Tables
 
 | name | required | purpose | default |
 | ---- | -------- | ------- | ------- |
@@ -38,14 +38,14 @@ daily_user_activities:
   item_key: game_key
 ```
 
-### Column
+### Aggregations
 
 | name | required | purpose | default |
 | ---- | -------- | ------- | ------- |
 | query | required | aggregation query |
 | dependencies | optional | a list of dependencies |
 
-#### columns.yml
+#### aggregations.yml
 ```yaml
 user_logins:
   query: |
