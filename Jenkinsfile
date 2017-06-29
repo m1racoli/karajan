@@ -12,13 +12,15 @@ podTemplate(
   ]
 ){
   node('karajan-ci'){
-    container('python'){
-      stage('Build'){
-        checkout scm
-        sh 'make install'
-      }
-      stage('Test'){
-        sh 'make test'
+    stage('Pipeline'){
+      container('python'){
+        stage('Build'){
+          checkout scm
+          sh 'make install'
+        }
+        stage('Test'){
+          sh 'make test'
+        }
       }
     }
   }
