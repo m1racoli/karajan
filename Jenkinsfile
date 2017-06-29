@@ -14,14 +14,10 @@ podTemplate(
   node('karajan-ci'){
     container('python'){
       stage('Build'){
-        steps {
-          sh 'make install'
-        }
+        sh 'make install'
       }
       stage('Test'){
-        steps {
-          sh 'make test'
-        }
+        sh 'make test'
       }
     }
   }
