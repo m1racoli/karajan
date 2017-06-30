@@ -5,7 +5,7 @@ podTemplate(
   name: 'karajan-ci',
   label: 'karajan-ci',
   containers: [
-    containerTemplate(name: 'python', image: 'python', ttyEnabled: true, command: 'cat')
+    containerTemplate(name: 'python', image: 'wooga/airflow_base', ttyEnabled: true, command: 'cat')
   ],
   volumes: [
     secretVolume(secretName: 'pypirc', mountPath: '/home/jenkins')
