@@ -20,6 +20,11 @@ podTemplate(
       stage('Test'){
         sh 'make test'
       }
+      if (env.BRANCH_NAME == 'production') {
+        stage('Release'){
+          sh 'make release'
+        }
+      }
     }
   }
 }
