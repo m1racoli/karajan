@@ -20,7 +20,7 @@ clean-test: ## remove test and coverage artifacts
 	rm -fr htmlcov/
 
 install: clean
-	python setup.py install
+	pip install -e .[dev]
 
 release: clean
 	python setup.py sdist upload
