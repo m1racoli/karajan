@@ -5,14 +5,14 @@ podTemplate(
   name: 'karajan-ci',
   label: 'karajan-ci',
   containers: [
-    containerTemplate(name: 'airflow_base', image: 'wooga-docker.jfrog.io/bit/airflow_base:latest', ttyEnabled: true, command: 'cat')
+    containerTemplate(name: 'airflow', image: 'wooga-docker.jfrog.io/bit/airflow_base:latest', ttyEnabled: true, command: 'cat')
   ],
   volumes: [
     secretVolume(secretName: 'pypirc', mountPath: '/home/jenkins')
   ]
 ){
   node('karajan-ci'){
-    container('airflow_base'){
+    container('airflow'){
       stage('Build'){
         checkout scm
         sh 'make install'
