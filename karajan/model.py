@@ -79,7 +79,12 @@ class AggregatedTable(Table):
 
 class AggregatedColumn(ModelBase):
     replace_update_type = 'REPLACE'
+    keep_update_type = 'KEEP'
+    min_update_type = 'MIN'
+    max_update_type = 'MAX'
     _default_update_type = replace_update_type
+    _update_types = {replace_update_type, keep_update_type, min_update_type, max_update_type}
+    _depends_on_past_update_types = {replace_update_type, keep_update_type}
 
     def __init__(self, aggregation_id, column_name, conf):
         self.aggregation_id = aggregation_id
@@ -92,14 +97,18 @@ class AggregatedColumn(ModelBase):
             self.update_type = self._default_update_type
         else:
             self.src_column_name = conf.get('column_name', self.column_name)
-            self.update_type = conf.get('update_type', self._default_update_type)
+            self.update_type = conf.get('update_type', self._default_update_type).upper()
         super(AggregatedColumn, self).__init__(column_name)
 
     def validate(self):
         validate_presence(self, 'aggregation_id')
         validate_presence(self, 'column_name')
         validate_presence(self, 'src_column_name')
+        validate_in(self, self._update_types, 'update_type')
         super(AggregatedColumn, self).validate()
+
+    def depends_on_past(self):
+        return self.update_type in self._depends_on_past_update_types
 
 
 class Column(ModelBase):
@@ -139,6 +148,9 @@ class Aggregation(ModelBase):
 
     def has_dependencies(self):
         return self.dependencies is not None
+
+    def depends_on_past(self):
+        return any(c.depends_on_past() for c in self.columns.values())
 
 
 class BaseDependency(ModelBase):

@@ -169,8 +169,18 @@ class ExasolEngine(BaseEngine):
         in_vals = ', '.join(["tmp.%s" % c for c in (key_columns + agg_columns)])
 
         def update_op(agg_col):
-            if agg_col.update_type == AggregatedColumn.replace_update_type:
-                return "tbl.%s = tmp.%s" % (agg_col.name, agg_col.name)
+            if agg_col.update_type.upper() == AggregatedColumn.replace_update_type:
+                return "\ntbl.{col_name} = IFNULL(tmp.{col_name}, tbl.{col_name})".format(
+                    col_name=agg_col.name)
+            elif agg_col.update_type.upper() == AggregatedColumn.keep_update_type:
+                return "\ntbl.{col_name} = IFNULL(tbl.{col_name}, tmp.{col_name})".format(
+                    col_name=agg_col.name)
+            elif agg_col.update_type.upper() == AggregatedColumn.min_update_type:
+                return "\ntbl.{col_name} = COALESCE(LEAST(tbl.{col_name}, tmp.{col_name}), tbl.{col_name}, tmp.{col_name})".format(
+                    col_name=agg_col.name)
+            elif agg_col.update_type.upper() == AggregatedColumn.max_update_type:
+                return "\ntbl.{col_name} = COALESCE(GREATEST(tbl.{col_name}, tmp.{col_name}), tbl.{col_name}, tmp.{col_name})".format(
+                    col_name=agg_col.name)
             return None
 
         set_cols = ', '.join([update_op(c) for c in agg.columns.values() if update_op(c) is not None])
@@ -188,6 +198,7 @@ class ExasolEngine(BaseEngine):
             dag=dag,
             sql=sql,
             autocommit=self.autocommit,
+            depends_on_past=(not table.is_timeseries() and agg.depends_on_past()),
             **self.task_attributes
         )
 
