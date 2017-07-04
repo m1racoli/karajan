@@ -1,0 +1,291 @@
+from unittest import TestCase
+
+from nose.tools import assert_equal
+from parameterized import parameterized
+
+from karajan.validations import *
+
+
+def _validate(fun, expected, *args):
+    valid = True
+    try:
+        fun(*args)
+    except ValidationException:
+        valid = False
+    assert_equal(valid, expected)
+
+
+@parameterized([
+    (None, False),
+    ('', False),
+    ('0', True),
+    ('1', True),
+    ('x', True),
+    (0, True),
+    (1, True),
+    (True, True),
+    (False, True),
+    ({}, True),
+    ([], True),
+    ({'a': 'b'}, True),
+    (['c'], True),
+])
+def test_validate_presence(val, expected):
+    _validate(validate_presence, expected, val)
+
+
+@parameterized([
+    (None, True),
+    ('', True),
+    ('0', False),
+    ('1', False),
+    ('x', False),
+    (0, False),
+    (1, False),
+    (True, False),
+    (False, False),
+    ({}, False),
+    ([], False),
+    ({'a': 'b'}, False),
+    (['c'], False),
+])
+def test_validate_absense(val, expected):
+    _validate(validate_absence, expected, val)
+
+
+@parameterized([
+    (None, False),
+    ('', False),
+    ('0', False),
+    ('1', False),
+    ('x', False),
+    (0, False),
+    (1, False),
+    (True, False),
+    (False, False),
+    ({}, True),
+    ([], True),
+    ({'a': 'b'}, False),
+    (['c'], False),
+])
+def test_validate_empty(val, expected):
+    _validate(validate_empty, expected, val)
+
+
+@parameterized([
+    (None, False),
+    ('', False),
+    ('0', False),
+    ('1', False),
+    ('x', False),
+    (0, False),
+    (1, False),
+    (True, False),
+    (False, False),
+    ({}, False),
+    ([], False),
+    ({'a': 'b'}, True),
+    (['c'], True),
+])
+def test_validate_not_empty(val, expected):
+    _validate(validate_not_empty, expected, val)
+
+
+@parameterized([
+    ([], None, False),
+    ([], 'a', False),
+    (['c'], None, False),
+    (['c'], 'a', False),
+    ([None], None, True),
+    (['a'], 'a', True),
+    ({}, None, False),
+    ({}, 'a', False),
+    ({'c': 'd'}, None, False),
+    ({'c': 'd'}, 'a', False),
+    ({None: 'd'}, None, True),
+    ({'a': 'd'}, 'a', True),
+])
+def test_validate_include(items, val, expected):
+    _validate(validate_include, expected, items, val)
+
+
+@parameterized([
+    ([], None, True),
+    ([], 'a', True),
+    (['c'], None, True),
+    (['c'], 'a', True),
+    ([None], None, False),
+    (['a'], 'a', False),
+    ({}, None, True),
+    ({}, 'a', True),
+    ({'c': 'd'}, None, True),
+    ({'c': 'd'}, 'a', True),
+    ({None: 'd'}, None, False),
+    ({'a': 'd'}, 'a', False),
+])
+def test_validate_exclude(items, val, expected):
+    _validate(validate_exclude, expected, items, val)
+
+
+class TestValidatable(TestCase):
+    def setUp(self):
+        self.validatable = Validatable()
+
+    def test_validate(self):
+        self.validatable.validate()
+
+    def _validate(self, fun, expected, val, *args):
+        valid = True
+        setattr(self.validatable, 'attribute', val)
+        try:
+            fun('attribute', *args)
+        except ValidationException:
+            valid = False
+        assert_equal(valid, expected)
+
+    @parameterized.expand([
+        ('none', None, False),
+        ('empty_str', '', False),
+        ('0_str', '0', True),
+        ('1_str', '1', True),
+        ('x', 'x', True),
+        ('0', 0, True),
+        ('1', 1, True),
+        ('true', True, True),
+        ('false', False, True),
+        ('dict', {}, True),
+        ('list', [], True),
+    ])
+    def test_validate_presence(self, _, val, expected):
+        self._validate(self.validatable.validate_presence, expected, val)
+
+    @parameterized.expand([
+        ('none', None, True),
+        ('empty_str', '', True),
+        ('0_str', '0', False),
+        ('1_str', '1', False),
+        ('x', 'x', False),
+        ('0', 0, False),
+        ('1', 1, False),
+        ('true', True, False),
+        ('false', False, False),
+        ('dict', {}, False),
+        ('list', [], False),
+    ])
+    def test_validate_absence(self, _, val, expected):
+        self._validate(self.validatable.validate_absence, expected, val)
+
+    @parameterized.expand([
+        ('none', None, False),
+        ('empty_str', '', False),
+        ('0_str', '0', False),
+        ('1_str', '1', False),
+        ('x', 'x', False),
+        ('0', 0, False),
+        ('1', 1, False),
+        ('true', True, False),
+        ('false', False, False),
+        ('dict', {}, True),
+        ('list', [], True),
+        ('dict', {'a': 'b'}, False),
+        ('list', ['c'], False),
+    ])
+    def test_validate_empty(self, _, val, expected):
+        self._validate(self.validatable.validate_empty, expected, val)
+
+
+    @parameterized.expand([
+        ('none', None, False),
+        ('empty_str', '', False),
+        ('0_str', '0', False),
+        ('1_str', '1', False),
+        ('x', 'x', False),
+        ('0', 0, False),
+        ('1', 1, False),
+        ('true', True, False),
+        ('false', False, False),
+        ('dict', {}, False),
+        ('list', [], False),
+        ('dict', {'a': 'b'}, True),
+        ('list', ['c'], True),
+    ])
+    def test_validate_not_empty(self, _, val, expected):
+        self._validate(self.validatable.validate_not_empty, expected, val)
+
+    @parameterized.expand([
+        ([], None, False),
+        ([], 'a', False),
+        (['c'], None, False),
+        (['c'], 'a', False),
+        ([None], None, True),
+        (['a'], 'a', True),
+        ({}, None, False),
+        ({}, 'a', False),
+        ({'c': 'd'}, None, False),
+        ({'c': 'd'}, 'a', False),
+        ({None: 'd'}, None, True),
+        ({'a': 'd'}, 'a', True),
+    ])
+    def test_validate_include(self, items, val, expected):
+        self._validate(self.validatable.validate_include, expected, items, val)
+
+    @parameterized.expand([
+        ([], None, True),
+        ([], 'a', True),
+        (['c'], None, True),
+        (['c'], 'a', True),
+        ([None], None, False),
+        (['a'], 'a', False),
+        ({}, None, True),
+        ({}, 'a', True),
+        ({'c': 'd'}, None, True),
+        ({'c': 'd'}, 'a', True),
+        ({None: 'd'}, None, False),
+        ({'a': 'd'}, 'a', False),
+    ])
+    def test_validate_exclude(self, items, val, expected):
+        self._validate(self.validatable.validate_exclude, expected, items, val)
+
+    @parameterized.expand([
+        ([], None, False),
+        ([], 'a', False),
+        (['c'], None, False),
+        (['c'], 'a', False),
+        ([None], None, True),
+        (['a'], 'a', True),
+        ({}, None, False),
+        ({}, 'a', False),
+        ({'c': 'd'}, None, False),
+        ({'c': 'd'}, 'a', False),
+        ({None: 'd'}, None, True),
+        ({'a': 'd'}, 'a', True),
+    ])
+    def test_validate_in(self, items, val, expected):
+        self._validate(self.validatable.validate_in, expected, val, items)
+
+    @parameterized.expand([
+        ([], None, True),
+        ([], 'a', True),
+        (['c'], None, True),
+        (['c'], 'a', True),
+        ([None], None, False),
+        (['a'], 'a', False),
+        ({}, None, True),
+        ({}, 'a', True),
+        ({'c': 'd'}, None, True),
+        ({'c': 'd'}, 'a', True),
+        ({None: 'd'}, None, False),
+        ({'a': 'd'}, 'a', False),
+    ])
+    def test_validate_not_in(self, items, val, expected):
+        self._validate(self.validatable.validate_not_in, expected, val, items)
+
+    def test_validate_conf_name(self):
+        ex = None
+        setattr(self.validatable, 'attribute', '')
+        try:
+            self.validatable.validate_presence('attribute', 'conf_name')
+        except ValidationException as e:
+            ex = e
+        assert isinstance(ex, ValidationException)
+        assert_equal(ex.message, 'Validatable: conf_name must be present')

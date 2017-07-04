@@ -4,13 +4,14 @@ from datetime import datetime, timedelta, date
 from validations import *
 
 
-class ModelBase(object):
+class ModelBase(object, Validatable):
     def __init__(self, name):
         self.name = name
         self.validate()
+        super(ModelBase, self).__init__()
 
     def validate(self):
-        validate_presence(self, 'name')
+        self.validate_presence('name')
 
 
 class Table(ModelBase):
@@ -19,7 +20,7 @@ class Table(ModelBase):
         super(Table, self).__init__(name)
 
     def validate(self):
-        validate_presence(self, 'schema')
+        self.validate_presence('schema')
         super(Table, self).validate()
 
 
@@ -44,9 +45,9 @@ class AggregatedTable(Table):
             return '%s_%s' % (prefix, self.name)
 
     def validate(self):
-        validate_presence(self, 'start_date')
-        validate_not_empty(self, 'key_columns')
-        validate_not_empty(self, 'aggregations', 'aggregated_columns')
+        self.validate_presence('start_date')
+        self.validate_not_empty('key_columns')
+        self.validate_not_empty('aggregations', 'aggregated_columns')
         super(AggregatedTable, self).validate()
 
     @staticmethod
@@ -101,10 +102,10 @@ class AggregatedColumn(ModelBase):
         super(AggregatedColumn, self).__init__(column_name)
 
     def validate(self):
-        validate_presence(self, 'aggregation_id')
-        validate_presence(self, 'column_name')
-        validate_presence(self, 'src_column_name')
-        validate_in(self, self._update_types, 'update_type')
+        self.validate_presence('aggregation_id')
+        self.validate_presence('column_name')
+        self.validate_presence('src_column_name')
+        self.validate_in('update_type', self._update_types)
         super(AggregatedColumn, self).validate()
 
     def depends_on_past(self):
@@ -120,7 +121,7 @@ class Column(ModelBase):
         super(Column, self).__init__(name)
 
     def validate(self):
-        validate_presence(self, 'column_type')
+        self.validate_presence('column_type')
         super(Column, self).validate()
 
 
@@ -133,7 +134,7 @@ class Aggregation(ModelBase):
         super(Aggregation, self).__init__(name)
 
     def validate(self):
-        validate_presence(self, 'query')
+        self.validate_presence('query')
         super(Aggregation, self).validate()
 
     def _check_parameterize(self, table):
