@@ -16,7 +16,7 @@ class Conductor(object):
 
     def build(self, engine=BaseEngine(), target=None):
 
-        tables = {n: AggregatedTable(n, c) for n, c in self.conf['tables'].iteritems()}
+        tables = {n: AggregatedTable(n, c) for n, c in self.conf['targets'].iteritems()}
 
         dags = {}
 

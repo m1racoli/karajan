@@ -4,7 +4,7 @@ from datetime import datetime
 def get_conf(context):
     if 'conf' not in context:
         context.conf = {
-            'tables': {},
+            'targets': {},
             'aggregations': {},
         }
     return context.conf
@@ -19,13 +19,13 @@ def get_aggregation_conf(context):
     return get_model_conf(context, 'aggregation')
 
 
-def get_table_conf(context):
-    return get_model_conf(context, 'table')
+def get_target_conf(context):
+    return get_model_conf(context, 'target')
 
 
 def min_config():
     return {
-        'tables': {
+        'targets': {
             "test": {
                 'start_date': datetime.now(),
                 'schema': 'test',

@@ -5,7 +5,7 @@ Feature: Validation
     Given a minimal config
 
   Scenario Outline: Required table attributes
-    Given the attribute <attr> for the table test is not set
+    Given the attribute <attr> for the target test is not set
     When I try to build the DAGs
     Then there should be no DAGs
     Then there should have been an exception ValidationException
