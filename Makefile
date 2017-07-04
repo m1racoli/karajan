@@ -26,5 +26,10 @@ release: clean
 	python setup.py sdist upload
 	python setup.py bdist_wheel upload
 
-test:
+test: nosetests behave
+
+nosetests:
+	nosetests --rednose --with-coverage --cover-erase --cover-html --cover-package=karajan --with-timer
+
+behave:
 	behave

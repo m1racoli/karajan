@@ -14,6 +14,13 @@ setup(
         "airflow[jdbc]>=1.7.1.3, <1.8.0",
     ],
     extras_require={
-        'dev': ['behave'],
+        'dev': [
+            'behave',
+            'nose',
+            'nose-timer',
+            'rednose',
+            'coverage',
+            'parameterized',
+        ],
     },
 )
