@@ -29,7 +29,12 @@ release: clean
 test: nosetests behave
 
 nosetests:
-	AIRFLOW_HOME=. nosetests --rednose --with-coverage --cover-erase --cover-html --cover-package=karajan --with-timer
+	AIRFLOW_HOME=. nosetests --cover-branches --rednose --with-coverage --cover-erase --cover-html --cover-package=karajan --cover-html-dir=cover/nose
 
 behave:
 	behave
+
+coverage-all: nosetests
+	coverage run -a --branch --source='karajan' -m behave
+	coverage report
+	coverage html --dir cover/all

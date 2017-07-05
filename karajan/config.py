@@ -19,8 +19,9 @@ class Config(object):
             conf = path.join(dags_path, conf)
 
         return {
-            'tables': Config.__load(path.join(conf, 'tables.yml')),
-            'aggregations': Config.__load(path.join(conf, 'aggregations.yml'))
+            'targets': Config.__load(path.join(conf, 'targets.yml')),
+            'aggregations': Config.__load(path.join(conf, 'aggregations.yml')),
+            'context': Config.__load(path.join(conf, 'context.yml')),
         }
 
     template_ignore_keywords = ['ds']

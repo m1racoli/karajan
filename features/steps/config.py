@@ -6,6 +6,7 @@ def get_conf(context):
         context.conf = {
             'targets': {},
             'aggregations': {},
+            'context': {},
         }
     return context.conf
 
@@ -21,6 +22,11 @@ def get_aggregation_conf(context):
 
 def get_target_conf(context):
     return get_model_conf(context, 'target')
+
+
+def get_context_conf(context):
+    conf = get_conf(context)
+    return conf.get('context')
 
 
 def min_config():
@@ -44,6 +50,7 @@ def min_config():
                 'query': "SELECT 'key' AS key_column, 'test_val' AS test_val FROM DUAL",
             }
         },
+        'context': {},
     }
 
 

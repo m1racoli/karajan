@@ -14,12 +14,27 @@ def step_impl(context, attr, model, id):
     conf.pop(attr, None)
 
 
+@given(u'the context has the following items')
+def step_impl(context):
+    conf = get_context_conf(context)
+    conf['items'] = conf.get('items', {})
+    for row in context.table:
+        conf['items'][row['item']] = {k: row[k] for k in row.headings if k != 'item'}
+    conf['item_column'] = 'item'
+
+
 @given(u'the {model} {id} has the following items')
 def step_impl(context, model, id):
     conf = get_model_conf(context, model).get(id)
     conf['items'] = conf.get('items', [])
     for row in context.table:
-        conf['items'].append({k: row[k] for k in row.headings})
+        conf['items'].append(row['item'])
+
+
+@given(u'the {model} {id} has wildcard items')
+def step_impl(context, model, id):
+    conf = get_model_conf(context, model).get(id)
+    conf['items'] = '*'
 
 
 @given(u'the aggregation {id} is parameterized')
