@@ -57,7 +57,8 @@ def min_config():
 def min_dependency_config(dep_type):
     conf = {
         'tracking': {'schema': 'test', 'table': 'test'},
-        'delta': {'delta': 0}
+        'delta': {'delta': 0},
+        'task': {'dag_id': 'test', 'task_id': 'test'},
     }[dep_type]
     conf['type'] = dep_type
     return conf

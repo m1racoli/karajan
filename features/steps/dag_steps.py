@@ -13,6 +13,13 @@ def get_dag(context, dag_id):
     raise Exception('DAG %s not found' % dag_id)
 
 
+def get_task(context, dag_id, task_id):
+    task = get_dag(context, dag_id).task_dict.get(task_id)
+    if task:
+        return task
+    raise Exception('Task %s not found in DAG %s' % (task_id, dag_id))
+
+
 @when(u'I build the DAGs')
 def step_impl(context):
     context.dags = Conductor(get_conf(context)).build()
@@ -57,3 +64,9 @@ def step_impl(context, dag_id, task_id):
 @then(u'the task {task_id} of {dag_id} should be of type {task_type}')
 def step_impl(context, task_id, dag_id, task_type):
     assert_equals(type(get_dag(context, dag_id).task_dict[task_id]).__name__, task_type)
+
+@then(u'in the DAG {dag_id} {downstream_id} should depend on {upstream_id}')
+def step_impl(context, dag_id, downstream_id, upstream_id):
+    downstream = get_task(context, dag_id, downstream_id)
+    upstream = get_task(context, dag_id, upstream_id)
+    assert_contains(downstream.upstream_list, upstream)
