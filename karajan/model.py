@@ -99,18 +99,6 @@ class Target(ModelBase):
             return datetime(o.year, o.month, o.day)
         return o
 
-    def param_set(self):
-        if self.context.is_parameterized():
-            def make_params(item):
-                params = {}
-                params.update(self.context.defaults)
-                params.update(self.context.items[item])
-                params['item'] = item
-
-            return [make_params(i) for i in self.items]
-        else:
-            return [self.context.defaults]
-
     def key_items(self):
         return self.context.items.keys()
 

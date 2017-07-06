@@ -33,7 +33,7 @@ class Config(object):
             return {k: cls.render(v, params) for k, v in conf.iteritems()}
         elif isinstance(conf, list):
             return [cls.render(v, params) for v in conf]
-        elif isinstance(conf, str):
+        elif isinstance(conf, (str, unicode)):
             render_params = dict()
             render_params.update(params)
             render_params.update(cls.template_ignore_mapping)

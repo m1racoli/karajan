@@ -45,7 +45,8 @@ class Conductor(object):
                         dep_op = engine.dependency_operator(dep_id, dag, dep)
                         dep_ops[dep_id] = dep_op
                         dep_op.set_upstream(init)
-                    agg_op.set_upstream(dep_ops[dep_id])
+                    if dep_id not in agg_op.upstream_task_ids:
+                        agg_op.set_upstream(dep_ops[dep_id])
 
             merge_op = engine.merge_operator('merge_%s' % agg_id, dag, target, agg)
             merge_op.set_upstream(agg_op)

@@ -27,7 +27,7 @@ class DeltaDependency(BaseDependency):
         td = conf.get('delta')
         if isinstance(td, int):
             td = timedelta(seconds=td)
-        elif isinstance(td, unicode):
+        else:
             td = self._parse_timedelta(td)
 
         self.delta = td
@@ -39,8 +39,6 @@ class DeltaDependency(BaseDependency):
 
     def _parse_timedelta(self, s):
         parts = self.__timedelta_regex.match(s)
-        if not parts:
-            return timedelta()
         parts = parts.groupdict()
         time_params = {}
         for (name, param) in parts.iteritems():
