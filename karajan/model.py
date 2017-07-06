@@ -61,7 +61,9 @@ class Target(ModelBase):
         self.context = context
         self.schema = conf.get('schema', None)
         self.start_date = self._date_time(conf.get('start_date'))
-        self.key_columns = {n: Column(n, c) for n, c in conf.get('key_columns', {}).iteritems()}
+        self.key_columns = conf.get('key_columns', [])
+        if context.is_parameterized():
+            self.key_columns.append(context.item_column)
         self.aggregations = \
             {agg_id: {cname: AggregatedColumn(agg_id, cname, conf) for cname, conf in agg_columns.iteritems()}
              for agg_id, agg_columns in

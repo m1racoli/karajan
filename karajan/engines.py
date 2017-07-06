@@ -67,9 +67,9 @@ class BaseEngine(object):
 
 def _aggregation_select_columns(table, agg, item_val=None, item_column=None):
     if item_val is not None and item_column is not None:
-        key_columns = [c if c != item_column else "'%s' as %s" % (item_val, item_column) for c in table.key_columns.keys()]
+        key_columns = [c if c != item_column else "'%s' as %s" % (item_val, item_column) for c in table.key_columns]
     else:
-        key_columns = table.key_columns.keys()
+        key_columns = table.key_columns
     agg_columns = ["%s as %s" % (c.src_column_name, c.column_name) for c in agg.columns.values()]
     return key_columns + agg_columns
 
@@ -145,7 +145,7 @@ class ExasolEngine(BaseEngine):
         )
 
     def _merge_select(self, table):
-        key_columns = table.key_columns.keys()
+        key_columns = table.key_columns
         agg_columns = [c for agg in table.aggregations.values() for c in agg]
         columns = ', '.join(key_columns + agg_columns)
         aggregations = table.aggregations.keys()
@@ -165,7 +165,7 @@ class ExasolEngine(BaseEngine):
         """
 
     def merge_operator(self, task_id, dag, table, agg):
-        key_columns = table.key_columns.keys()
+        key_columns = table.key_columns
         agg_columns = [c for c in agg.columns.keys()]
         on_cols = ' AND '.join(["tbl.%s=tmp.%s" % (c, c) for c in key_columns])
         in_cols = ', '.join(key_columns + agg_columns)

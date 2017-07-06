@@ -35,9 +35,9 @@ def min_config():
             "test": {
                 'start_date': datetime.now(),
                 'schema': 'test',
-                'key_columns': {
-                    'key_column': 'VARCHAR(100)',
-                },
+                'key_columns': [
+                    'key_column',
+                ],
                 'aggregated_columns': {
                     'test': {
                         'test_val': None,
