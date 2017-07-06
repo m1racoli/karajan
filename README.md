@@ -3,6 +3,23 @@ A conductor of aggregations in Apache Airflow
 
 ## Model
 
+### Context
+
+| name | required | purpose | default |
+| ---- | -------- | ------- | ------- |
+| items | optional | parameterize the aggregtions for those items |
+| defaults | optional | default values used in template, can also be used without items |
+| item_column | if items | column name for parameterization |
+
+```yaml
+items:
+  g9i:
+  g9: { userid: fbuserid }
+defaults:
+  userid: deviceid
+item_column: game_key
+```
+
 ### Tables
 
 | name | required | purpose | default |
@@ -12,9 +29,7 @@ A conductor of aggregations in Apache Airflow
 | key_columns | required | columns to merge new data on |
 | aggregated_columns | required | column name -> column reference | 
 | timeseries_key | optional | if set, aggregation will be done on per time unit basis |
-| items | optional | run the aggregation for multiple items | 
-| defaults | optional | set default values for the `params` object | 
-| item_key | optional | must be one of the key columns and not the timeseries key. used for parameterisation of aggregations | key |
+| items | optional | run the aggregations for those items |
 
 #### tables.yml
 ```yaml
@@ -22,7 +37,6 @@ daily_user_activities:
   start_date: 2017-06-01
   schema: agg
   key_columns:
-    game_key: VARCHAR(5) UTF8
     activity_date: DATE
     userid: DECIMAL(36,0)
   aggregated_columns:
@@ -30,12 +44,7 @@ daily_user_activities:
       country:
       logins:
   timeseries_key: activity_date
-  items:
-    - { game_key: g9i }
-    - { game_key: g9, userid: fbuserid }
-  defaults:
-    userid: deviceid
-  item_key: game_key
+  items: [g9i,g9]
 ```
 
 ### Aggregations
@@ -77,7 +86,7 @@ user_logins:
 
 ```yaml
 type: tracking
-schema: '{{ game_key }}'
+schema: '{{ item }}'
 table: APP_LOGINS
 ```
 
@@ -102,5 +111,5 @@ delta: 2h
 ```yaml
 type: task
 task_id: fill_bookings
-dag_id: '{{ game_key }}'
+dag_id: '{{ item }}'
 ```

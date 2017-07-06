@@ -19,8 +19,9 @@ class Config(object):
             conf = path.join(dags_path, conf)
 
         return {
-            'tables': Config.__load(path.join(conf, 'tables.yml')),
-            'aggregations': Config.__load(path.join(conf, 'aggregations.yml'))
+            'targets': Config.__load(path.join(conf, 'targets.yml')),
+            'aggregations': Config.__load(path.join(conf, 'aggregations.yml')),
+            'context': Config.__load(path.join(conf, 'context.yml')),
         }
 
     template_ignore_keywords = ['ds']
@@ -32,7 +33,7 @@ class Config(object):
             return {k: cls.render(v, params) for k, v in conf.iteritems()}
         elif isinstance(conf, list):
             return [cls.render(v, params) for v in conf]
-        elif isinstance(conf, str):
+        elif isinstance(conf, (str, unicode)):
             render_params = dict()
             render_params.update(params)
             render_params.update(cls.template_ignore_mapping)

@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='karajan',
-    version='0.0.10',
+    version='0.0.11',
     url='https://github.com/wooga/bit.karajan',
     license='',
     packages=['karajan'],
@@ -14,6 +14,13 @@ setup(
         "airflow[jdbc]>=1.7.1.3, <1.8.0",
     ],
     extras_require={
-        'dev': ['behave'],
+        'dev': [
+            'behave',
+            'nose',
+            'nose-timer',
+            'rednose',
+            'coverage',
+            'parameterized',
+        ],
     },
 )

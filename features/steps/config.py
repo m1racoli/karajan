@@ -4,8 +4,9 @@ from datetime import datetime
 def get_conf(context):
     if 'conf' not in context:
         context.conf = {
-            'tables': {},
+            'targets': {},
             'aggregations': {},
+            'context': {},
         }
     return context.conf
 
@@ -19,13 +20,18 @@ def get_aggregation_conf(context):
     return get_model_conf(context, 'aggregation')
 
 
-def get_table_conf(context):
-    return get_model_conf(context, 'table')
+def get_target_conf(context):
+    return get_model_conf(context, 'target')
+
+
+def get_context_conf(context):
+    conf = get_conf(context)
+    return conf.get('context')
 
 
 def min_config():
     return {
-        'tables': {
+        'targets': {
             "test": {
                 'start_date': datetime.now(),
                 'schema': 'test',
@@ -44,13 +50,15 @@ def min_config():
                 'query': "SELECT 'key' AS key_column, 'test_val' AS test_val FROM DUAL",
             }
         },
+        'context': {},
     }
 
 
 def min_dependency_config(dep_type):
     conf = {
         'tracking': {'schema': 'test', 'table': 'test'},
-        'delta': {'delta': 0}
+        'delta': {'delta': 0},
+        'task': {'dag_id': 'test', 'task_id': 'test'},
     }[dep_type]
     conf['type'] = dep_type
     return conf

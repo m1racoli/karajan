@@ -1,41 +1,76 @@
 import re
-from datetime import datetime, timedelta, date
+from datetime import datetime, date
 
 from validations import *
 
 
-class ModelBase(object):
+class ModelBase(object, Validatable):
     def __init__(self, name):
         self.name = name
         self.validate()
+        super(ModelBase, self).__init__()
 
     def validate(self):
-        validate_presence(self, 'name')
+        self.validate_presence('name')
 
 
-class Table(ModelBase):
-    def __init__(self, name, conf):
+class Context(ModelBase):
+    def __init__(self, conf):
+        self.items = conf.get('items', {})
+        for k,v in self.items.iteritems():
+            if not v:
+                self.items[k] = {}
+        self.defaults = conf.get('defaults', {})
+        self.item_column = conf.get('item_column', None)
+        super(Context, self).__init__('context')
+
+    def validate(self):
+        if self.is_parameterized():
+            self.validate_presence('item_column')
+            for k, v in self.items.iteritems():
+                validate_exclude(v, 'item')
+        else:
+            self.validate_absence('item_column')
+        self.validate_exclude('defaults', 'item')
+        super(Context, self).validate()
+
+    def is_parameterized(self):
+        return len(self.items) > 0
+
+    def item_keys(self):
+        if self.is_parameterized():
+            return ['item'] + self.defaults.keys()
+        else:
+            return self.defaults.keys()
+
+    def params(self, target):
+        if self.is_parameterized():
+            def make_params(item):
+                params = {}
+                params.update(self.defaults)
+                params.update(self.items[item])
+                params['item'] = item
+                return params
+            return {k: make_params(k) for k in target.items}
+        else:
+            return {'': self.defaults}
+
+
+class Target(ModelBase):
+    def __init__(self, name, conf, context):
+        self.context = context
         self.schema = conf.get('schema', None)
-        super(Table, self).__init__(name)
-
-    def validate(self):
-        validate_presence(self, 'schema')
-        super(Table, self).validate()
-
-
-class AggregatedTable(Table):
-    def __init__(self, name, conf):
         self.start_date = self._date_time(conf.get('start_date'))
         self.key_columns = {n: Column(n, c) for n, c in conf.get('key_columns', {}).iteritems()}
         self.aggregations = \
             {agg_id: {cname: AggregatedColumn(agg_id, cname, conf) for cname, conf in agg_columns.iteritems()}
              for agg_id, agg_columns in
              conf.get('aggregated_columns', {}).iteritems()}
-        self.items = conf.get('items', [{}])
-        self.defaults = conf.get('defaults', {})
-        self.item_key = conf.get('item_key')
+        self.items = conf.get('items', [])
+        if self.items == '*':
+            self.items = self.context.items.keys()
         self.timeseries_key = conf.get('timeseries_key')
-        super(AggregatedTable, self).__init__(name, conf)
+        super(Target, self).__init__(name)
 
     def dag_id(self, prefix=None):
         if not prefix:
@@ -44,10 +79,19 @@ class AggregatedTable(Table):
             return '%s_%s' % (prefix, self.name)
 
     def validate(self):
-        validate_presence(self, 'start_date')
-        validate_not_empty(self, 'key_columns')
-        validate_not_empty(self, 'aggregations', 'aggregated_columns')
-        super(AggregatedTable, self).validate()
+        self.validate_presence('schema')
+        self.validate_presence('start_date')
+        self.validate_not_empty('key_columns')
+        self.validate_not_empty('aggregations', 'aggregated_columns')
+        if self.context.is_parameterized():
+            self.validate_not_empty('items')
+            for i in self.items:
+                validate_include(self.context.items, i)
+        else:
+            self.validate_empty('items')
+        if self.timeseries_key:
+            self.validate_in('timeseries_key', self.key_columns)
+        super(Target, self).validate()
 
     @staticmethod
     def _date_time(o):
@@ -55,17 +99,8 @@ class AggregatedTable(Table):
             return datetime(o.year, o.month, o.day)
         return o
 
-    def param_set(self):
-        l = []
-        for item in self.items:
-            params = {}
-            params.update(self.defaults)
-            params.update(item)
-            l.append(params)
-        return l
-
     def key_items(self):
-        return [i[self.item_key] for i in self.items]
+        return self.context.items.keys()
 
     def aggregated_columns(self, aggregation_id):
         return self.aggregations.get(aggregation_id)
@@ -101,10 +136,10 @@ class AggregatedColumn(ModelBase):
         super(AggregatedColumn, self).__init__(column_name)
 
     def validate(self):
-        validate_presence(self, 'aggregation_id')
-        validate_presence(self, 'column_name')
-        validate_presence(self, 'src_column_name')
-        validate_in(self, self._update_types, 'update_type')
+        self.validate_presence('aggregation_id')
+        self.validate_presence('column_name')
+        self.validate_presence('src_column_name')
+        self.validate_in('update_type', self._update_types)
         super(AggregatedColumn, self).validate()
 
     def depends_on_past(self):
@@ -120,26 +155,30 @@ class Column(ModelBase):
         super(Column, self).__init__(name)
 
     def validate(self):
-        validate_presence(self, 'column_type')
+        self.validate_presence('column_type')
         super(Column, self).validate()
 
 
 class Aggregation(ModelBase):
-    def __init__(self, name, conf, table):
+    def __init__(self, name, conf, columns, context):
+        self.context = context
         self.query = conf.get('query', '')
         self.dependencies = conf.get('dependencies')
-        self.parameterize = self._check_parameterize(table)
-        self.columns = table.aggregated_columns(name)
+        self.parameterize = self._check_parameterize()
+        self.columns = columns
         super(Aggregation, self).__init__(name)
 
     def validate(self):
-        validate_presence(self, 'query')
+        self.validate_presence('query')
         super(Aggregation, self).validate()
 
-    def _check_parameterize(self, table):
+    def _check_parameterize(self):
+        if not self.context.is_parameterized():
+            return False
         query = self.query.replace('\n', ' ')  # wildcard doesn't match linebreaks
-        if self._param_regex(table.item_key).match(query):
-            return True
+        for k in self.context.item_keys():
+            if self._param_regex(k).match(query):
+                return True
         return False
 
     @staticmethod
@@ -148,70 +187,3 @@ class Aggregation(ModelBase):
 
     def has_dependencies(self):
         return self.dependencies is not None
-
-    def depends_on_past(self):
-        return any(c.depends_on_past() for c in self.columns.values())
-
-
-class BaseDependency(ModelBase):
-    def id(self):
-        return ("wait_for_%s" % self.name).lower()
-
-
-class NothingDependency(BaseDependency):
-    def __init__(self):
-        super(NothingDependency, self).__init__('nothing')
-
-
-class TrackingDependency(BaseDependency):
-    def __init__(self, conf):
-        self.schema = conf.get('schema')
-        self.table = conf.get('table')
-        name = ("%s_%s" % (self.schema, self.table)).lower()
-        super(TrackingDependency, self).__init__(name)
-
-
-class DeltaDependency(BaseDependency):
-    def __init__(self, conf):
-        td = conf.get('delta')
-        if isinstance(td, int):
-            td = timedelta(seconds=td)
-        elif isinstance(td, unicode):
-            td = self._parse_timedelta(td)
-
-        self.delta = td
-        name = ("%s_seconds_delta" % int(self.delta.total_seconds())).lower()
-        super(DeltaDependency, self).__init__(name)
-
-    __timedelta_regex = re.compile(
-        r'((?P<weeks>\d+?)w)?((?P<days>\d+?)d)?((?P<hours>\d+?)h)?((?P<minutes>\d+?)m)?((?P<seconds>\d+?)s)?')
-
-    def _parse_timedelta(self, s):
-        parts = self.__timedelta_regex.match(s)
-        if not parts:
-            return timedelta()
-        parts = parts.groupdict()
-        time_params = {}
-        for (name, param) in parts.iteritems():
-            if param:
-                time_params[name] = int(param)
-        return timedelta(**time_params)
-
-
-class TaskDependency(BaseDependency):
-    def __init__(self, conf):
-        self.dag_id = conf.get('dag_id')
-        self.task_id = conf.get('task_id')
-        name = ("task_%s_%s" % (self.dag_id, self.task_id)).lower()
-        super(TaskDependency, self).__init__(name)
-
-
-d_map = {
-    'tracking': TrackingDependency,
-    'delta': DeltaDependency,
-    'task': TaskDependency,
-}
-
-
-def get_dependency(conf):
-    return d_map[conf.get('type')](conf)

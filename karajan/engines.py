@@ -5,7 +5,8 @@ from airflow.operators.jdbc_operator import JdbcOperator
 from airflow.operators.sensors import SqlSensor, TimeDeltaSensor, ExternalTaskSensor
 
 from karajan.config import Config
-from karajan.model import DeltaDependency, TrackingDependency, NothingDependency, TaskDependency, AggregatedColumn
+from karajan.dependencies import DeltaDependency, TrackingDependency, NothingDependency, TaskDependency
+from karajan.model import AggregatedColumn
 
 
 class BaseEngine(object):
@@ -47,7 +48,7 @@ class BaseEngine(object):
             dag=dag,
         )
 
-    def aggregation_operator(self, task_id, dag, table, agg):
+    def aggregation_operator(self, task_id, dag, table, agg, context):
         return self._dummy_operator(task_id, dag)
 
     def merge_operator(self, task_id, dag, table, agg):
@@ -64,9 +65,9 @@ class BaseEngine(object):
         return DummyOperator(task_id=task_id, dag=dag)
 
 
-def _aggregation_select_columns(table, agg, item_val=None, item_key=None):
-    if item_val is not None and item_key is not None:
-        key_columns = [c if c != item_key else "'%s' as %s" % (item_val, item_key) for c in table.key_columns.keys()]
+def _aggregation_select_columns(table, agg, item_val=None, item_column=None):
+    if item_val is not None and item_column is not None:
+        key_columns = [c if c != item_column else "'%s' as %s" % (item_val, item_column) for c in table.key_columns.keys()]
     else:
         key_columns = table.key_columns.keys()
     agg_columns = ["%s as %s" % (c.src_column_name, c.column_name) for c in agg.columns.values()]
@@ -95,18 +96,20 @@ class ExasolEngine(BaseEngine):
 
     _aggregation_query_template = "CREATE TABLE {agg_table} AS\n{agg_select}"
 
-    def _aggregation_query(self, table, agg):
+    def _aggregation_query(self, table, agg, context):
         if agg.parameterize:
             def sub_query(p):
                 select = Config.render(agg.query, p)
-                columns = ',\n'.join(_aggregation_select_columns(table, agg, p[table.item_key], table.item_key))
+                columns = ',\n'.join(_aggregation_select_columns(table, agg, p['item'], context.item_column))
                 return self._aggregation_select(select, columns)
-            sub_queries = [sub_query(params) for params in table.param_set()]
+
+            sub_queries = [sub_query(params) for params in context.params(table).values()]
             query = '\nUNION ALL\n'.join(sub_queries)
         else:
-            select = Config.render(agg.query, table.defaults)
+            select = Config.render(agg.query, context.defaults)
             columns = ',\n'.join(_aggregation_select_columns(table, agg))
-            where = '\nWHERE %s in (%s)' % (table.item_key, ', '.join(["'%s'" % i[table.item_key] for i in table.items]))
+            where = '\nWHERE %s in (%s)' % (
+            context.item_column, ', '.join(["'%s'" % i for i in table.items]))
             query = self._aggregation_select(select, columns, where)
         return self._aggregation_query_template.format(
             agg_table=self._aggregation_table_name(table, agg),
@@ -118,12 +121,12 @@ class ExasolEngine(BaseEngine):
     def _aggregation_select(self, select, columns, where=''):
         return self._aggregation_select_template.format(select=select, columns=columns, where=where)
 
-    def aggregation_operator(self, task_id, dag, table, agg):
+    def aggregation_operator(self, task_id, dag, table, agg, context):
         return JdbcOperator(
             task_id=task_id,
             jdbc_conn_id=self.conn_id,
             dag=dag,
-            sql=self._aggregation_query(table, agg),
+            sql=self._aggregation_query(table, agg, context),
             autocommit=self.autocommit,
             **self.task_attributes
         )
@@ -147,7 +150,7 @@ class ExasolEngine(BaseEngine):
         columns = ', '.join(key_columns + agg_columns)
         aggregations = table.aggregations.keys()
         first_agg = aggregations.pop(0)
-        outer_join = '\nOUTER JOIN '.join([first_agg] + ["%s ON (%s)" % (a,'') for a in aggregations])
+        outer_join = '\nOUTER JOIN '.join([first_agg] + ["%s ON (%s)" % (a, '') for a in aggregations])
         return "SELECT {columns}\nFROM {outer_join}".format(columns=columns, outer_join=outer_join)
 
     _merge_query_template = """
