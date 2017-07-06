@@ -37,8 +37,8 @@ daily_user_activities:
   start_date: 2017-06-01
   schema: agg
   key_columns:
-    activity_date: DATE
-    userid: DECIMAL(36,0)
+    - activity_date
+    - userid
   aggregated_columns:
     user_logins:
       country:
