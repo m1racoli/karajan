@@ -33,6 +33,14 @@ class Conductor(object):
         init = engine.init_operator('init', dag, target)
         done_op = engine.done_operator('done', dag)
         dep_ops = {}
+        param_col_ops = {}
+
+        for item, params in self.context.params(target).iteritems():
+            if target.has_parameter_columns():
+                param_col_op_name = "merge_parameter_columns_%s" % item if item else "merge_parameter_columns"
+                param_col_op = engine.param_column_op(param_col_op_name, dag, target, params, item)
+                param_col_ops[item] = param_col_op
+                param_col_op.set_downstream(done_op)
 
         for agg_id, agg_columns in target.aggregations.iteritems():
             agg = Aggregation(agg_id, self.conf['aggregations'][agg_id], agg_columns, self.context)
@@ -50,6 +58,8 @@ class Conductor(object):
 
             merge_op = engine.merge_operator('merge_%s' % agg_id, dag, target, agg)
             merge_op.set_upstream(agg_op)
+            for param_col_op in param_col_ops.values():
+                merge_op.set_downstream(param_col_op)
 
             clean_op = engine.cleanup_operator('cleanup_%s' % agg_id, dag, target, agg)
             clean_op.set_upstream(merge_op)

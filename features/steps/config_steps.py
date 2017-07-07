@@ -23,6 +23,15 @@ def step_impl(context):
     conf['item_column'] = 'item'
 
 
+@given(u'the context has the following defaults')
+def step_impl(context):
+    conf = get_context_conf(context)
+    conf['defaults'] = conf.get('defaults', {})
+    row = context.table[0]
+    for h in row.headings:
+        conf['defaults'][h] = row[h]
+
+
 @given(u'the {model} {id} has the following items')
 def step_impl(context, model, id):
     conf = get_model_conf(context, model).get(id)
@@ -74,3 +83,12 @@ def step_impl(context, id, timeseries_key):
     conf['key_columns'] = conf.get('key_columns', {})
     conf['key_columns']['datum'] = 'DATE'
     conf['timeseries_key'] = timeseries_key
+
+
+@given(u'the target {id} has the following parameter columns')
+def step_impl(context, id):
+    conf = get_target_conf(context).get(id)
+    conf['parameter_columns'] = conf.get('parameter_columns', {})
+    row = context.table[0]
+    for h in row.headings:
+        conf['parameter_columns'][h] = row[h]

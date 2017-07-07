@@ -72,6 +72,7 @@ class Target(ModelBase):
         if self.items == '*':
             self.items = self.context.items.keys()
         self.timeseries_key = conf.get('timeseries_key')
+        self.parameter_columns = conf.get('parameter_columns', {})
         super(Target, self).__init__(name)
 
     def dag_id(self, prefix=None):
@@ -93,6 +94,9 @@ class Target(ModelBase):
             self.validate_empty('items')
         if self.timeseries_key:
             self.validate_in('timeseries_key', self.key_columns)
+        for item_key in self.parameter_columns.values():
+            validate_include(self.context.item_keys(), item_key)
+
         super(Target, self).validate()
 
     @staticmethod
@@ -112,6 +116,9 @@ class Target(ModelBase):
 
     def is_timeseries(self):
         return self.timeseries_key is not None
+
+    def has_parameter_columns(self):
+        return True if self.parameter_columns else False
 
 
 class AggregatedColumn(ModelBase):
