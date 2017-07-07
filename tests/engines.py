@@ -42,24 +42,13 @@ class TestExasolEngine(TestCase):
             'bool': True,
         }
         op = self.engine.param_column_op(task_id, None, target, params, 'g9')
-        assert_equal("""
-UPDATE test_table
-SET datetime_col = '2017-01-01 00:00:00'
-WHERE NOT datetime_col = '2017-01-01 00:00:00'
-AND item_column = 'g9';
-UPDATE test_table
-SET number_col = 42
-WHERE NOT number_col = 42
-AND item_column = 'g9';
-UPDATE test_table
-SET bool_col = True
-WHERE NOT bool_col = True
-AND item_column = 'g9';
-UPDATE test_table
-SET date_col = '2017-01-01'
-WHERE NOT date_col = '2017-01-01'
-AND item_column = 'g9';
-      """.strip(), op.sql)
+        expected = [
+            "UPDATE test_table SET datetime_col = '2017-01-01 00:00:00' WHERE NOT datetime_col = '2017-01-01 00:00:00' AND item_column = 'g9'",
+            "UPDATE test_table SET number_col = 42 WHERE NOT number_col = 42 AND item_column = 'g9'",
+            "UPDATE test_table SET bool_col = True WHERE NOT bool_col = True AND item_column = 'g9'",
+            "UPDATE test_table SET date_col = '2017-01-01' WHERE NOT date_col = '2017-01-01' AND item_column = 'g9'",
+        ]
+        assert_equal(expected, op.sql)
 
     def test_param_column_op_wo_item(self):
         context = TestExasolEngine.Stub(
@@ -83,17 +72,10 @@ AND item_column = 'g9';
             'bool': True,
         }
         op = self.engine.param_column_op(task_id, None, target, params, '')
-        assert_equal("""
-UPDATE test_table
-SET datetime_col = '2017-01-01 00:00:00'
-WHERE NOT datetime_col = '2017-01-01 00:00:00';
-UPDATE test_table
-SET number_col = 42
-WHERE NOT number_col = 42;
-UPDATE test_table
-SET bool_col = True
-WHERE NOT bool_col = True;
-UPDATE test_table
-SET date_col = '2017-01-01'
-WHERE NOT date_col = '2017-01-01';
-        """.strip(), op.sql)
+        expected = [
+            "UPDATE test_table SET datetime_col = '2017-01-01 00:00:00' WHERE NOT datetime_col = '2017-01-01 00:00:00'",
+            "UPDATE test_table SET number_col = 42 WHERE NOT number_col = 42",
+            "UPDATE test_table SET bool_col = True WHERE NOT bool_col = True",
+            "UPDATE test_table SET date_col = '2017-01-01' WHERE NOT date_col = '2017-01-01'",
+        ]
+        assert_equal(expected, op.sql)
