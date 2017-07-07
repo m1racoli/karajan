@@ -39,6 +39,7 @@ class Context(ModelBase):
 
     def item_keys(self):
         if self.is_parameterized():
+            # give me all distinct keys (k) for each item's parameter dict (d)
             keys = {k for d in self.items.values() for k in d}
             keys.add('item')
             keys.update(self.defaults.keys())
