@@ -228,20 +228,18 @@ class ExasolEngine(BaseEngine):
     def param_column_op(self, task_id, dag, target, params, item):
         sql = []
         for column, pname in target.parameter_columns.iteritems():
-            sql.append("UPDATE {table}\nSET {column} = {value}\nWHERE NOT {column} = {value}".format(
+            sql.append("UPDATE {table} SET {column} = {value} WHERE NOT {column} = {value}".format(
                 table=target.name,
                 column=column,
                 value=self.db_str(params[pname]),
             ))
         if item:
-            sql = ["%s\nAND %s = %s;" % (s,target.context.item_column, self.db_str(item)) for s in sql]
-        else:
-            sql = ["%s;" % (s) for s in sql]
+            sql = ["%s AND %s = %s" % (s,target.context.item_column, self.db_str(item)) for s in sql]
         return JdbcOperator(
             task_id=task_id,
             jdbc_conn_id=self.conn_id,
             dag=dag,
-            sql='\n'.join(sql),
+            sql=sql,
             autocommit=self.autocommit,
             **self.task_attributes
         )
