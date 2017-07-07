@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import timedelta, date, datetime
 
 from airflow.operators.dummy_operator import DummyOperator
 from airflow.operators.jdbc_operator import JdbcOperator
@@ -58,6 +58,9 @@ class BaseEngine(object):
         return self._dummy_operator(task_id, dag)
 
     def done_operator(self, task_id, dag):
+        return self._dummy_operator(task_id, dag)
+
+    def param_column_op(self, task_id, dag, target, params, item):
         return self._dummy_operator(task_id, dag)
 
     @staticmethod
@@ -211,6 +214,34 @@ class ExasolEngine(BaseEngine):
             jdbc_conn_id=self.conn_id,
             dag=dag,
             sql='DROP TABLE IF EXISTS %s' % (self._aggregation_table_name(table, agg)),
+            autocommit=self.autocommit,
+            **self.task_attributes
+        )
+
+    @staticmethod
+    def db_str(val):
+        if isinstance(val, (str, unicode, date, datetime)):
+            return "'%s'" % val
+        else:
+            return val
+
+    def param_column_op(self, task_id, dag, target, params, item):
+        sql = []
+        for column, pname in target.parameter_columns.iteritems():
+            sql.append("UPDATE {table}\nSET {column} = {value}\nWHERE NOT {column} = {value}".format(
+                table=target.name,
+                column=column,
+                value=self.db_str(params[pname]),
+            ))
+        if item:
+            sql = ["%s\nAND %s = %s;" % (s,target.context.item_column, self.db_str(item)) for s in sql]
+        else:
+            sql = ["%s;" % (s) for s in sql]
+        return JdbcOperator(
+            task_id=task_id,
+            jdbc_conn_id=self.conn_id,
+            dag=dag,
+            sql='\n'.join(sql),
             autocommit=self.autocommit,
             **self.task_attributes
         )
