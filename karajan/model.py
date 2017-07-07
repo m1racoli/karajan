@@ -39,7 +39,10 @@ class Context(ModelBase):
 
     def item_keys(self):
         if self.is_parameterized():
-            return ['item'] + self.defaults.keys()
+            keys = {k for d in self.items.values() for k in d}
+            keys.add('item')
+            keys.update(self.defaults.keys())
+            return keys
         else:
             return self.defaults.keys()
 
