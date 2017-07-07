@@ -228,8 +228,9 @@ class ExasolEngine(BaseEngine):
     def param_column_op(self, task_id, dag, target, params, item):
         sql = []
         for column, pname in target.parameter_columns.iteritems():
-            sql.append("UPDATE {table} SET {column} = {value} WHERE NOT {column} = {value}".format(
+            sql.append("UPDATE {schema}.{table} SET {column} = {value} WHERE NOT {column} = {value}".format(
                 table=target.name,
+                schema=target.schema,
                 column=column,
                 value=self.db_str(params[pname]),
             ))
