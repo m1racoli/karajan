@@ -124,6 +124,9 @@ class Target(ModelBase):
     def has_parameter_columns(self):
         return True if self.parameter_columns else False
 
+    def src_column_names(self, aggregation_id):
+        return self.key_columns + [ac.name for ac in self.aggregations.get(aggregation_id).values()]
+
 
 class AggregatedColumn(ModelBase):
     replace_update_type = 'REPLACE'

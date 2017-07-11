@@ -22,6 +22,54 @@ class TestExasolEngine(TestCase):
     def setUp(self):
         self.engine = ExasolEngine()
 
+    def test_agg_op_wo_param(self):
+        target = TestExasolEngine.Stub(
+            name='test_table',
+            schema='test_schema',
+            src_column_names = lambda x: ['test_column'],
+        )
+        agg = TestExasolEngine.Stub(
+            name="test_agg",
+            query="SELECT * FROM {{ default }}",
+        )
+        params = {'default': 'DUAL'}
+        task_id = 'aggregate_test_agg'
+        op = self.engine.aggregation_operator(task_id, None, target, agg, params, None)
+        expected = "CREATE TABLE test_schema_tmp.test_table_agg_test_agg_{{ ds_nodash }} AS\nSELECT\ntest_column FROM (SELECT * FROM DUAL) sub "
+        assert_equal(expected, op.sql)
+
+    def test_agg_op_w_param_context(self):
+        target = TestExasolEngine.Stub(
+            name='test_table',
+            schema='test_schema',
+            src_column_names = lambda x: ['item_column', 'test_column'],
+        )
+        agg = TestExasolEngine.Stub(
+            name="test_agg",
+            query="SELECT * FROM {{ default }}",
+        )
+        params = {'default': 'DUAL'}
+        task_id = 'aggregate_test_agg'
+        op = self.engine.aggregation_operator(task_id, None, target, agg, params, ('item_column', ['g9i', 'g9']))
+        expected = "CREATE TABLE test_schema_tmp.test_table_agg_test_agg_{{ ds_nodash }} AS\nSELECT\nitem_column, test_column FROM (SELECT * FROM DUAL) sub WHERE item_column in ('g9i', 'g9')"
+        assert_equal(expected, op.sql)
+
+    def test_agg_op_w_param_context_agg(self):
+        target = TestExasolEngine.Stub(
+            name='test_table',
+            schema='test_schema',
+            src_column_names = lambda x: ['item_column', 'test_column'],
+        )
+        agg = TestExasolEngine.Stub(
+            name="test_agg",
+            query="SELECT * FROM {{ item }}",
+        )
+        params = {'item': 'DUAL'}
+        task_id = 'aggregate_test_agg_g9i'
+        op = self.engine.aggregation_operator(task_id, None, target, agg, params, ('item_column', 'g9i'))
+        expected = "CREATE TABLE test_schema_tmp.test_table_agg_test_agg_g9i_{{ ds_nodash }} AS\nSELECT\n'g9i' as item_column, test_column FROM (SELECT * FROM DUAL) sub "
+        assert_equal(expected, op.sql)
+
     def test_param_column_op_w_item(self):
         context = TestExasolEngine.Stub(
             item_column='item_column'
