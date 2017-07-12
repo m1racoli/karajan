@@ -43,6 +43,7 @@ Feature: Parameterization
     And the aggregation test has a tracking dependency
     When I build the DAGs
     Then in the DAG test aggregate_test should depend on wait_for_test_test
+    And in the DAG test merge_test should depend on aggregate_test
 
   Scenario: Parameterized context and aggregation
     Given the context has the following items
@@ -53,7 +54,10 @@ Feature: Parameterization
     And the aggregation test is parameterized
     And the aggregation test has a tracking dependency
     When I build the DAGs
-    Then in the DAG test aggregate_test should depend on wait_for_test_test
+    Then in the DAG test aggregate_test_g9i should depend on wait_for_test_test
+    And in the DAG test aggregate_test_g9 should depend on wait_for_test_test
+    And in the DAG test merge_test_g9i should depend on aggregate_test_g9i
+    And in the DAG test merge_test_g9 should depend on aggregate_test_g9
 
   Scenario: Parameterized context and dependency
     Given the context has the following items
@@ -67,6 +71,7 @@ Feature: Parameterization
     When I build the DAGs
     Then in the DAG test aggregate_test should depend on wait_for_g9_test
     And in the DAG test aggregate_test should depend on wait_for_g9i_test
+    And in the DAG test merge_test should depend on aggregate_test
 
   Scenario: Parameterized context, aggregation and dependency
     Given the context has the following items
@@ -79,5 +84,7 @@ Feature: Parameterization
       | schema     |
       | {{ item }} |
     When I build the DAGs
-    Then in the DAG test aggregate_test should depend on wait_for_g9_test
-    And in the DAG test aggregate_test should depend on wait_for_g9i_test
+    Then in the DAG test aggregate_test_g9 should depend on wait_for_g9_test
+    And in the DAG test aggregate_test_g9i should depend on wait_for_g9i_test
+    And in the DAG test merge_test_g9i should depend on aggregate_test_g9i
+    And in the DAG test merge_test_g9 should depend on aggregate_test_g9

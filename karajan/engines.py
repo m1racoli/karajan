@@ -48,13 +48,13 @@ class BaseEngine(object):
             dag=dag,
         )
 
-    def aggregation_operator(self, task_id, dag, table, agg, context):
+    def aggregation_operator(self, task_id, dag, target, agg, params, item):
         return self._dummy_operator(task_id, dag)
 
-    def merge_operator(self, task_id, dag, table, agg):
+    def merge_operator(self, task_id, dag, table, agg, item):
         return self._dummy_operator(task_id, dag)
 
-    def cleanup_operator(self, task_id, dag, table, agg):
+    def cleanup_operator(self, task_id, dag, table, agg, item):
         return self._dummy_operator(task_id, dag)
 
     def done_operator(self, task_id, dag):
@@ -66,15 +66,6 @@ class BaseEngine(object):
     @staticmethod
     def _dummy_operator(task_id, dag):
         return DummyOperator(task_id=task_id, dag=dag)
-
-
-def _aggregation_select_columns(table, agg, item_val=None, item_column=None):
-    if item_val is not None and item_column is not None:
-        key_columns = [c if c != item_column else "'%s' as %s" % (item_val, item_column) for c in table.key_columns]
-    else:
-        key_columns = table.key_columns
-    agg_columns = ["%s as %s" % (c.src_column_name, c.column_name) for c in agg.columns.values()]
-    return key_columns + agg_columns
 
 
 class ExasolEngine(BaseEngine):
@@ -97,47 +88,39 @@ class ExasolEngine(BaseEngine):
             **self.task_attributes
         )
 
-    _aggregation_query_template = "CREATE TABLE {agg_table} AS\n{agg_select}"
-
-    def _aggregation_query(self, table, agg, context):
-        if agg.parameterize:
-            def sub_query(p):
-                select = Config.render(agg.query, p)
-                columns = ',\n'.join(_aggregation_select_columns(table, agg, p['item'], context.item_column))
-                return self._aggregation_select(select, columns)
-
-            sub_queries = [sub_query(params) for params in context.params(table).values()]
-            query = '\nUNION ALL\n'.join(sub_queries)
+    def aggregation_operator(self, task_id, dag, target, agg, params, item):
+        select = Config.render(agg.query, params)
+        if item is None:
+            # nothing parameterized
+            where = ''
+            columns = target.src_column_names(agg.name)
+            tmp_table = self._aggregation_table_name(target, agg)
+        elif isinstance(item[1], list):
+            # parameterized context
+            where = "WHERE %s in (%s)" % (item[0],
+                                          ', '.join([self.db_str(i) for i in item[1]]))
+            columns = target.src_column_names(agg.name)
+            tmp_table = self._aggregation_table_name(target, agg)
         else:
-            select = Config.render(agg.query, context.defaults)
-            columns = ',\n'.join(_aggregation_select_columns(table, agg))
-            where = '\nWHERE %s in (%s)' % (
-            context.item_column, ', '.join(["'%s'" % i for i in table.items]))
-            query = self._aggregation_select(select, columns, where)
-        return self._aggregation_query_template.format(
-            agg_table=self._aggregation_table_name(table, agg),
-            agg_select=query
-        )
-
-    _aggregation_select_template = "SELECT\n{columns}\nFROM ({select}) sub {where}"
-
-    def _aggregation_select(self, select, columns, where=''):
-        return self._aggregation_select_template.format(select=select, columns=columns, where=where)
-
-    def aggregation_operator(self, task_id, dag, table, agg, context):
+            # parameterized context and aggregation
+            where = ''
+            columns = [n if n != item[0] else "%s as %s" % (self.db_str(item[1]), item[0]) for n in target.src_column_names(agg.name)]
+            tmp_table = self._aggregation_table_name(target, agg, item[1])
+        columns = ', '.join(columns)
+        sql = "CREATE TABLE {tmp_table} AS\nSELECT\n{columns} FROM ({select}) sub {where}"
         return JdbcOperator(
             task_id=task_id,
             jdbc_conn_id=self.conn_id,
             dag=dag,
-            sql=self._aggregation_query(table, agg, context),
+            sql=sql.format(tmp_table=tmp_table, columns=columns, select=select, where=where),
             autocommit=self.autocommit,
             **self.task_attributes
         )
 
-    def init_operator(self, task_id, dag, table):
-        if not table.is_timeseries():
+    def init_operator(self, task_id, dag, target):
+        if not target.is_timeseries():
             return self._dummy_operator(task_id, dag)
-        sql = "DELETE FROM %s WHERE %s = '{{ ds }}'" % (self._table(table), table.timeseries_key)
+        sql = "DELETE FROM %s WHERE %s = '{{ ds }}'" % (target.table(), target.timeseries_key)
         return JdbcOperator(
             task_id=task_id,
             jdbc_conn_id=self.conn_id,
@@ -147,53 +130,47 @@ class ExasolEngine(BaseEngine):
             **self.task_attributes
         )
 
-    def _merge_select(self, table):
-        key_columns = table.key_columns
-        agg_columns = [c for agg in table.aggregations.values() for c in agg]
-        columns = ', '.join(key_columns + agg_columns)
-        aggregations = table.aggregations.keys()
-        first_agg = aggregations.pop(0)
-        outer_join = '\nOUTER JOIN '.join([first_agg] + ["%s ON (%s)" % (a, '') for a in aggregations])
-        return "SELECT {columns}\nFROM {outer_join}".format(columns=columns, outer_join=outer_join)
-
     _merge_query_template = """
-        MERGE INTO {table} tbl
-        USING (SELECT {in_cols} FROM {agg_table}) tmp
-        ON {on_cols}
-        WHEN MATCHED THEN
-        UPDATE SET {set_cols}
-        WHEN NOT MATCHED THEN
-        INSERT ({in_cols})
-        VALUES ({in_vals})
+MERGE INTO {target_table} tbl
+USING (SELECT {src_cols} FROM {tmp_table}) tmp
+ON {on_cols}
+WHEN MATCHED THEN
+UPDATE SET {set_cols}
+WHEN NOT MATCHED THEN
+INSERT ({in_cols})
+VALUES ({in_vals})
         """
 
-    def merge_operator(self, task_id, dag, table, agg):
-        key_columns = table.key_columns
-        agg_columns = [c for c in agg.columns.keys()]
+    def merge_operator(self, task_id, dag, target, agg, item):
+        key_columns = target.key_columns
+        agg_src_columns = [c.src_column_name for c in agg.columns.values()]
+        src_cols = ', '.join(key_columns + agg_src_columns)
         on_cols = ' AND '.join(["tbl.%s=tmp.%s" % (c, c) for c in key_columns])
+        agg_columns = [c for c in agg.columns.keys()]
         in_cols = ', '.join(key_columns + agg_columns)
-        in_vals = ', '.join(["tmp.%s" % c for c in (key_columns + agg_columns)])
+        in_vals = ', '.join(["tmp.%s" % c for c in (key_columns + agg_src_columns)])
 
         def update_op(agg_col):
             if agg_col.update_type.upper() == AggregatedColumn.replace_update_type:
-                return "\ntbl.{col_name} = IFNULL(tmp.{col_name}, tbl.{col_name})".format(
-                    col_name=agg_col.name)
+                return "\ntbl.{tbl_col_name} = IFNULL(tmp.{tmp_col_name}, tbl.{tbl_col_name})".format(
+                    tbl_col_name=agg_col.name, tmp_col_name=agg_col.src_column_name)
             elif agg_col.update_type.upper() == AggregatedColumn.keep_update_type:
-                return "\ntbl.{col_name} = IFNULL(tbl.{col_name}, tmp.{col_name})".format(
-                    col_name=agg_col.name)
+                return "\ntbl.{tbl_col_name} = IFNULL(tbl.{tbl_col_name}, tmp.{tmp_col_name})".format(
+                    tbl_col_name=agg_col.name, tmp_col_name=agg_col.src_column_name)
             elif agg_col.update_type.upper() == AggregatedColumn.min_update_type:
-                return "\ntbl.{col_name} = COALESCE(LEAST(tbl.{col_name}, tmp.{col_name}), tbl.{col_name}, tmp.{col_name})".format(
-                    col_name=agg_col.name)
+                return "\ntbl.{tbl_col_name} = COALESCE(LEAST(tbl.{tbl_col_name}, tmp.{tmp_col_name}), tbl.{tbl_col_name}, tmp.{tmp_col_name})".format(
+                    tbl_col_name=agg_col.name, tmp_col_name=agg_col.src_column_name)
             elif agg_col.update_type.upper() == AggregatedColumn.max_update_type:
-                return "\ntbl.{col_name} = COALESCE(GREATEST(tbl.{col_name}, tmp.{col_name}), tbl.{col_name}, tmp.{col_name})".format(
-                    col_name=agg_col.name)
+                return "\ntbl.{tbl_col_name} = COALESCE(GREATEST(tbl.{tbl_col_name}, tmp.{tmp_col_name}), tbl.{tbl_col_name}, tmp.{tmp_col_name})".format(
+                    tbl_col_name=agg_col.name, tmp_col_name=agg_col.src_column_name)
             return None
 
         set_cols = ', '.join([update_op(c) for c in agg.columns.values() if update_op(c) is not None])
         sql = self._merge_query_template.format(
-            table=self._table(table),
-            agg_table=self._aggregation_table_name(table, agg),
+            target_table=target.table(),
+            tmp_table=self._aggregation_table_name(target, agg, item),
             on_cols=on_cols,
+            src_cols=src_cols,
             in_cols=in_cols,
             in_vals=in_vals,
             set_cols=set_cols
@@ -204,16 +181,16 @@ class ExasolEngine(BaseEngine):
             dag=dag,
             sql=sql,
             autocommit=self.autocommit,
-            depends_on_past=(not table.is_timeseries() and agg.depends_on_past()),
+            depends_on_past=(not target.is_timeseries() and agg.depends_on_past()),
             **self.task_attributes
         )
 
-    def cleanup_operator(self, task_id, dag, table, agg):
+    def cleanup_operator(self, task_id, dag, target, agg, item):
         return JdbcOperator(
             task_id=task_id,
             jdbc_conn_id=self.conn_id,
             dag=dag,
-            sql='DROP TABLE IF EXISTS %s' % (self._aggregation_table_name(table, agg)),
+            sql='DROP TABLE IF EXISTS %s' % (self._aggregation_table_name(target, agg, item)),
             autocommit=self.autocommit,
             **self.task_attributes
         )
@@ -228,14 +205,15 @@ class ExasolEngine(BaseEngine):
     def param_column_op(self, task_id, dag, target, params, item):
         sql = []
         for column, pname in target.parameter_columns.iteritems():
-            sql.append("UPDATE {schema}.{table} SET {column} = {value} WHERE ({column} IS NULL OR {column} != {value})".format(
-                table=target.name,
-                schema=target.schema,
-                column=column,
-                value=self.db_str(params[pname]),
-            ))
+            sql.append(
+                "UPDATE {schema}.{table} SET {column} = {value} WHERE ({column} IS NULL OR {column} != {value})".format(
+                    table=target.name,
+                    schema=target.schema,
+                    column=column,
+                    value=self.db_str(params[pname]),
+                ))
         if item:
-            sql = ["%s AND %s = %s" % (s,target.context.item_column, self.db_str(item)) for s in sql]
+            sql = ["%s AND %s = %s" % (s, target.context.item_column, self.db_str(item)) for s in sql]
         return JdbcOperator(
             task_id=task_id,
             jdbc_conn_id=self.conn_id,
@@ -247,13 +225,7 @@ class ExasolEngine(BaseEngine):
         )
 
     @staticmethod
-    def _table(table):
-        return '%s.%s' % (table.schema, table.name)
-
-    @staticmethod
-    def _tmp_table(table):
-        return '%s_tmp.%s_tmp_{{ ts_nodash }}' % (table.schema, table.name)
-
-    @staticmethod
-    def _aggregation_table_name(table, agg):
-        return '%s_tmp.%s_agg_%s_{{ ds_nodash }}' % (table.schema, table.name, agg.name)
+    def _aggregation_table_name(target, agg, item=None):
+        if item:
+            return '%s_tmp.%s_agg_%s_%s_{{ ds_nodash }}' % (target.schema, target.name, agg.name, item)
+        return '%s_tmp.%s_agg_%s_{{ ds_nodash }}' % (target.schema, target.name, agg.name)
