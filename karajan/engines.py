@@ -242,6 +242,7 @@ class ExasolEngine(BaseEngine):
             dag=dag,
             sql=sql,
             autocommit=self.autocommit,
+            depends_on_past=True,
             **self.task_attributes
         )
 

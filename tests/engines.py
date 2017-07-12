@@ -50,6 +50,7 @@ class TestExasolEngine(TestCase):
             "UPDATE test_schema.test_table SET date_col = '2017-01-01' WHERE (date_col IS NULL OR date_col != '2017-01-01') AND item_column = 'g9'",
         ]
         assert_equal(expected, op.sql)
+        assert_equal(True, op.depends_on_past)
 
     def test_param_column_op_wo_item(self):
         context = TestExasolEngine.Stub(
@@ -81,3 +82,4 @@ class TestExasolEngine(TestCase):
             "UPDATE test_schema.test_table SET date_col = '2017-01-01' WHERE (date_col IS NULL OR date_col != '2017-01-01')",
         ]
         assert_equal(expected, op.sql)
+        assert_equal(True, op.depends_on_past)
