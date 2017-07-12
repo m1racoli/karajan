@@ -58,13 +58,13 @@ class Conductor(object):
 
             for item, agg_op in agg_ops.iteritems():
                 name = agg_id if not item else '%s_%s' % (agg_id, item)
-                merge_op = engine.merge_operator('merge_%s' % name, dag, target, agg)
+                merge_op = engine.merge_operator('merge_%s' % name, dag, target, agg, item)
                 merge_op.set_upstream(agg_op)
                 for i, param_col_op in param_col_ops.iteritems():
                     if not item or i == item:
                         merge_op.set_downstream(param_col_op)
 
-                clean_op = engine.cleanup_operator('cleanup_%s' % name, dag, target, agg)
+                clean_op = engine.cleanup_operator('cleanup_%s' % name, dag, target, agg, item)
                 clean_op.set_upstream(merge_op)
                 clean_op.set_downstream(done_op)
 

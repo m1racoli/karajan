@@ -3,8 +3,8 @@ from unittest import TestCase
 
 from airflow.operators.dummy_operator import DummyOperator
 from airflow.operators.sensors import SqlSensor, TimeDeltaSensor, ExternalTaskSensor
+
 from nose.tools import assert_equal
-from parameterized import parameterized
 
 from karajan.dependencies import TrackingDependency, DeltaDependency, NothingDependency, TaskDependency
 from karajan.engines import ExasolEngine
@@ -180,3 +180,127 @@ class TestExasolEngine(TestCase):
         except StandardError as e:
             exception = e
         assert_equal(True, isinstance(exception, StandardError))
+
+    def test_merge_op_wo_item(self):
+        agg_column = TestExasolEngine.Stub(
+            name='test_column',
+            src_column_name='test_agg_column',
+            update_type='MAX',
+        )
+        target = TestExasolEngine.Stub(
+            name='test_table',
+            schema='test_schema',
+            key_columns=['item_column'],
+            table= lambda: "test_schema.test_table",
+            is_timeseries=lambda: False,
+        )
+        task_id = 'merge_parameter_columns'
+        agg = TestExasolEngine.Stub(
+            name='test_agg',
+            columns={'test_column': agg_column},
+            depends_on_past=lambda: False,
+        )
+        op = self.engine.merge_operator(task_id, None, target, agg, '')
+        expected = """
+MERGE INTO test_schema.test_table tbl
+USING (SELECT item_column, test_agg_column FROM test_schema_tmp.test_table_agg_test_agg_{{ ds_nodash }}) tmp
+ON tbl.item_column=tmp.item_column
+WHEN MATCHED THEN
+UPDATE SET
+tbl.test_column = COALESCE(GREATEST(tbl.test_column, tmp.test_agg_column), tbl.test_column, tmp.test_agg_column)
+WHEN NOT MATCHED THEN
+INSERT (item_column, test_column)
+VALUES (tmp.item_column, tmp.test_agg_column)
+        """
+        assert_equal(False, op.depends_on_past)
+        assert_str_equal(expected, op.sql)
+
+    def test_merge_op_w_item(self):
+        agg_column = TestExasolEngine.Stub(
+            name='test_column',
+            src_column_name='test_agg_column',
+            update_type='REPLACE',
+        )
+        target = TestExasolEngine.Stub(
+            name='test_table',
+            schema='test_schema',
+            key_columns=['item_column'],
+            table= lambda: "test_schema.test_table",
+            is_timeseries=lambda: False,
+        )
+        task_id = 'merge_parameter_columns'
+        agg = TestExasolEngine.Stub(
+            name='test_agg',
+            columns={'test_column': agg_column},
+            depends_on_past=lambda: True,
+        )
+        op = self.engine.merge_operator(task_id, None, target, agg, 'g9i')
+        expected = """
+MERGE INTO test_schema.test_table tbl
+USING (SELECT item_column, test_agg_column FROM test_schema_tmp.test_table_agg_test_agg_g9i_{{ ds_nodash }}) tmp
+ON tbl.item_column=tmp.item_column
+WHEN MATCHED THEN
+UPDATE SET
+tbl.test_column = IFNULL(tmp.test_agg_column, tbl.test_column)
+WHEN NOT MATCHED THEN
+INSERT (item_column, test_column)
+VALUES (tmp.item_column, tmp.test_agg_column)
+        """
+        assert_equal(True, op.depends_on_past)
+        assert_str_equal(expected, op.sql)
+
+    def test_cleanup_op_w_item(self):
+        target = TestExasolEngine.Stub(
+            name='test_table',
+            schema='test_schema',
+        )
+        task_id = 'cleanup_test_agg_g9i'
+        agg = TestExasolEngine.Stub(
+            name='test_agg',
+        )
+        op = self.engine.cleanup_operator(task_id, None, target, agg, 'g9i')
+        expected = "DROP TABLE IF EXISTS test_schema_tmp.test_table_agg_test_agg_g9i_{{ ds_nodash }}"
+        assert_str_equal(expected, op.sql)
+
+    def test_cleanup_op_wo_item(self):
+        target = TestExasolEngine.Stub(
+            name='test_table',
+            schema='test_schema',
+        )
+        task_id = 'cleanup_test_agg'
+        agg = TestExasolEngine.Stub(
+            name='test_agg',
+        )
+        op = self.engine.cleanup_operator(task_id, None, target, agg, '')
+        expected = "DROP TABLE IF EXISTS test_schema_tmp.test_table_agg_test_agg_{{ ds_nodash }}"
+        assert_str_equal(expected, op.sql)
+
+    def test_init_op_wo_timeseries(self):
+        target = TestExasolEngine.Stub(
+            table=lambda: "test_schema.test_table",
+            is_timeseries=lambda: False,
+        )
+        task_id = 'init'
+        op = self.engine.init_operator(task_id, None, target)
+        assert_equal(isinstance(op, DummyOperator), True)
+
+    def test_init_op_w_timeseries(self):
+        target = TestExasolEngine.Stub(
+            table=lambda: "test_schema.test_table",
+            timeseries_key= 'timeseries_column',
+            is_timeseries= lambda: True,
+        )
+        task_id = 'init'
+        op = self.engine.init_operator(task_id, None, target)
+        expected = "DELETE FROM test_schema.test_table WHERE timeseries_column = '{{ ds }}'"
+        assert_str_equal(expected, op.sql)
+
+
+def assert_str_equal(actual, expected, strip=True):
+    actual = actual.split('\n')
+    expected = expected.split('\n')
+    for al, el in zip(actual, expected):
+        if strip:
+            al = al.strip()
+            el = el.strip()
+        assert_equal(al, el)
