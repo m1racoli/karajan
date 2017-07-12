@@ -1,9 +1,12 @@
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from unittest import TestCase
 
+from airflow.operators.dummy_operator import DummyOperator
+from airflow.operators.sensors import SqlSensor, TimeDeltaSensor, ExternalTaskSensor
 from nose.tools import assert_equal
 from parameterized import parameterized
 
+from karajan.dependencies import TrackingDependency, DeltaDependency, NothingDependency, TaskDependency
 from karajan.engines import ExasolEngine
 
 
@@ -83,3 +86,49 @@ class TestExasolEngine(TestCase):
         ]
         assert_equal(expected, op.sql)
         assert_equal(True, op.depends_on_past)
+
+    def test_delta_dep_op(self):
+        dep = DeltaDependency({
+            'delta': '2h',
+        })
+        task_id = 'wait_for_tracking_schema_tracking_table'
+        op = self.engine.dependency_operator(task_id, None, dep)
+        expected = timedelta(hours=2)
+        assert_equal(expected, op.delta)
+        assert_equal(True, isinstance(op, TimeDeltaSensor))
+
+    def test_tracking_dep_op(self):
+        dep = TrackingDependency({
+            'schema': 'tracking_schema',
+            'table': 'tracking_table',
+        })
+        task_id = 'wait_for_tracking_schema_tracking_table'
+        op = self.engine.dependency_operator(task_id, None, dep)
+        expected = "SELECT created_date FROM tracking_schema.tracking_table WHERE CREATED_DATE>'{{ ds }}' LIMIT 1"
+        assert_equal(expected, op.sql)
+        assert_equal(True, isinstance(op, SqlSensor))
+
+    def test_nothing_dep_op(self):
+        dep = NothingDependency()
+        task_id = 'wait_for_nothing'
+        op = self.engine.dependency_operator(task_id, None, dep)
+        assert_equal(True, isinstance(op, DummyOperator))
+
+    def test_task_dep_op(self):
+        dep = TaskDependency({
+            'dag_id': 'dag_id',
+            'task_id': 'task_id',
+        })
+        task_id = 'wait_for_dag_id_task_id'
+        op = self.engine.dependency_operator(task_id, None, dep)
+        assert_equal('dag_id', op.external_dag_id)
+        assert_equal('task_id', op.external_task_id)
+        assert_equal(True, isinstance(op, ExternalTaskSensor))
+
+    def test_unknown_dep_op(self):
+        exception = None
+        try:
+            op = self.engine.dependency_operator('', None, None)
+        except StandardError as e:
+            exception = e
+        assert_equal(True, isinstance(exception, StandardError))
