@@ -23,7 +23,7 @@ class BaseEngine(object):
         elif isinstance(dep, TaskDependency):
             return self.task_dependency_operator(task_id, dag, dep)
         else:
-            raise "Dependency operator for %s not found" % type(dep)
+            raise StandardError("Dependency operator for %s not found" % type(dep))
 
     @staticmethod
     def delta_dependency_operator(task_id, dag, dep):
@@ -92,7 +92,7 @@ class ExasolEngine(BaseEngine):
             task_id=task_id,
             dag=dag,
             conn_id=self.conn_id,
-            sql="SELECT DISTINCT created_date FROM %s.%s WHERE CREATED_DATE='{{ macros.ds_add(ds, +1) }}'" % (
+            sql="SELECT created_date FROM %s.%s WHERE CREATED_DATE>'{{ ds }}' LIMIT 1" % (
                 dep.schema, dep.table),
             **self.task_attributes
         )
