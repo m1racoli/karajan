@@ -48,6 +48,10 @@ Feature: Parameterization
     And in the DAG test.g9i aggregate_test should depend on wait_for_test_test
     And in the DAG test.g9i prepare_test_test should depend on aggregate_test
     And in the DAG test.g9i merge_test_test should depend on prepare_test_test
+    And in the DAG test.g9i purge_test should depend on merge_test_test
+    And in the DAG test.g9 purge_test should depend on merge_test_test
+    And in the DAG test.g9i done should depend on purge_test
+    And in the DAG test.g9 done should depend on purge_test
 
   Scenario: Parameterized context and aggregation
     Given the context has the following items
@@ -64,6 +68,10 @@ Feature: Parameterization
     And in the DAG test.g9 prepare_test_test should depend on aggregate_test
     And in the DAG test.g9i merge_test_test should depend on prepare_test_test
     And in the DAG test.g9 merge_test_test should depend on prepare_test_test
+    And in the DAG test.g9i purge_test should depend on merge_test_test
+    And in the DAG test.g9 purge_test should depend on merge_test_test
+    And in the DAG test.g9i done should depend on purge_test
+    And in the DAG test.g9 done should depend on purge_test
 
   Scenario: Parameterized context and dependency
     Given the context has the following items
@@ -81,7 +89,10 @@ Feature: Parameterization
     And in the DAG test.g9 prepare_test_test should depend on aggregate_test
     And in the DAG test.g9i merge_test_test should depend on prepare_test_test
     And in the DAG test.g9 merge_test_test should depend on prepare_test_test
-
+    And in the DAG test.g9i purge_test should depend on merge_test_test
+    And in the DAG test.g9 purge_test should depend on merge_test_test
+    And in the DAG test.g9i done should depend on purge_test
+    And in the DAG test.g9 done should depend on purge_test
 
   Scenario: Parameterized context, aggregation and dependency
     Given the context has the following items
@@ -100,3 +111,7 @@ Feature: Parameterization
     And in the DAG test.g9 prepare_test_test should depend on aggregate_test
     And in the DAG test.g9i merge_test_test should depend on prepare_test_test
     And in the DAG test.g9 merge_test_test should depend on prepare_test_test
+    And in the DAG test.g9i purge_test should depend on merge_test_test
+    And in the DAG test.g9 purge_test should depend on merge_test_test
+    And in the DAG test.g9i done should depend on purge_test
+    And in the DAG test.g9 done should depend on purge_test

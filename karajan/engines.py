@@ -66,6 +66,13 @@ class BaseEngine(object):
     def _cleanup_operator_id(agg):
         return 'cleanup_%s' % agg.name
 
+    def purge_operator(self, dag, target, item):
+        return self._dummy_operator(self._purge_operator_id(target), dag)
+
+    @staticmethod
+    def _purge_operator_id(target):
+        return 'purge_%s' % target.name
+
     def param_column_op(self, dag, target, params, item):
         return self._dummy_operator(self._param_column_operator_id(target), dag)
 

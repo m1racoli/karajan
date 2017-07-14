@@ -54,12 +54,15 @@ class Conductor(object):
         targets = [t for t in self.targets if t.has_item(item)]
         aggregations = [self.aggregations[a] for a in {a for t in targets for a in t.aggregations}]
         dependency_operators = {}
-        parameter_columns_operators = {}
+        purge_operators = {}
 
         for target in targets:
+            purge_operator = engine.purge_operator(dag, target, item)
+            purge_operators[target.name] = purge_operator
+            purge_operator.set_downstream(done)
             if target.has_parameter_columns():
                 param_col_op = engine.param_column_op(dag, target, params, item)
-                parameter_columns_operators[target.name] = param_col_op
+                param_col_op.set_upstream(purge_operator)
                 param_col_op.set_downstream(done)
 
         for aggregation in aggregations:
@@ -86,8 +89,7 @@ class Conductor(object):
                 merge_operator = engine.merge_operator(dag, aggregation, target, item)
                 merge_operator.set_upstream(prepare_operator)
                 merge_operator.set_downstream(clean_operator)
-                if target.has_parameter_columns():
-                    merge_operator.set_downstream(parameter_columns_operators[target.name])
+                merge_operator.set_downstream(purge_operators[target.name])
 
         return dag
 
