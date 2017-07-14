@@ -36,7 +36,7 @@ class ConfigHelper(dict):
 
     def parameterize_context(self, items=None, with_targets=True):
         if items is None:
-            items = {'g9i': {}, 'g9': {}}
+            items = {'item': {}}
         self['context']['items'] = items
         self['context']['item_column'] = 'item_column'
         if with_targets:

@@ -7,28 +7,29 @@ from config import *
 
 
 def get_dag(context, dag_id):
-    dag = context.dags.get(dag_id)
+    if '.' in dag_id:
+        [dag_id, subdag_id] = dag_id.split('.')
+        dag = context.dags.get(dag_id).get_task(subdag_id).subdag
+    else:
+        dag = context.dags.get(dag_id)
     if dag:
         return dag
     raise Exception('DAG %s not found' % dag_id)
 
 
 def get_task(context, dag_id, task_id):
-    task = get_dag(context, dag_id).task_dict.get(task_id)
-    if task:
-        return task
-    raise Exception('Task %s not found in DAG %s' % (task_id, dag_id))
+    return get_dag(context, dag_id).get_task(task_id)
 
 
 @when(u'I build the DAGs')
 def step_impl(context):
-    context.dags = Conductor(get_conf(context)).build()
+    context.dags = Conductor(get_conf(context)).build('test')
 
 
 @when(u'I try to build the DAGs')
 def step_impl(context):
     try:
-        context.dags = Conductor(get_conf(context)).build()
+        context.dags = Conductor(get_conf(context)).build('test')
     except Exception:
         context.exception = {'type': sys.exc_info()[0].__name__, 'msg': sys.exc_info()[1]}
         context.dags = {}

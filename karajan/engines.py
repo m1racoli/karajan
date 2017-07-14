@@ -10,9 +10,6 @@ from karajan.model import AggregatedColumn
 
 
 class BaseEngine(object):
-    def init_operator(self, task_id, dag, table):
-        return self._dummy_operator(task_id, dag)
-
     def dependency_operator(self, task_id, dag, dep):
         if isinstance(dep, DeltaDependency):
             return self.delta_dependency_operator(task_id, dag, dep)
@@ -48,20 +45,40 @@ class BaseEngine(object):
             dag=dag,
         )
 
-    def aggregation_operator(self, task_id, dag, target, agg, params, item):
-        return self._dummy_operator(task_id, dag)
+    def aggregation_operator(self, dag, target, agg, params, item):
+        return self._dummy_operator(self._aggregation_operator_id(agg), dag)
 
-    def merge_operator(self, task_id, dag, table, agg, item):
-        return self._dummy_operator(task_id, dag)
+    @staticmethod
+    def _aggregation_operator_id(agg):
+        return 'aggregate_%s' % agg.name
 
-    def cleanup_operator(self, task_id, dag, table, agg, item):
-        return self._dummy_operator(task_id, dag)
+    def merge_operator(self, dag, table, agg, item):
+        return self._dummy_operator(self._merge_operator_id(agg, table), dag)
 
-    def done_operator(self, task_id, dag):
-        return self._dummy_operator(task_id, dag)
+    @staticmethod
+    def _merge_operator_id(agg, target):
+        return 'merge_%s_%s' % (agg.name, target.name)
 
-    def param_column_op(self, task_id, dag, target, params, item):
-        return self._dummy_operator(task_id, dag)
+    def cleanup_operator(self, dag, agg, item):
+        return self._dummy_operator(self._cleanup_operator_id(agg), dag)
+
+    @staticmethod
+    def _cleanup_operator_id(agg):
+        return 'cleanup_%s' % agg.name
+
+    def param_column_op(self, dag, target, params, item):
+        return self._dummy_operator(self._param_column_operator_id(target), dag)
+
+    @staticmethod
+    def _param_column_operator_id(target):
+        return 'fill_parameter_columns_%s' % target.name
+
+    def prepare_operator(self, dag, agg, target, item):
+        return self._dummy_operator(self._prepare_operator_id(agg, target), dag)
+
+    @staticmethod
+    def _prepare_operator_id(agg, target):
+        return 'prepare_%s_%s' % (agg.name,target.name)
 
     @staticmethod
     def _dummy_operator(task_id, dag):
@@ -69,7 +86,8 @@ class BaseEngine(object):
 
 
 class ExasolEngine(BaseEngine):
-    def __init__(self, conn_id=None, queue='default', retries=12, retry_delay=timedelta(seconds=300), autocommit=True):
+    def __init__(self, tmp_schema, conn_id=None, queue='default', retries=12, retry_delay=timedelta(seconds=300), autocommit=True):
+        self.tmp_schema = tmp_schema
         self.conn_id = conn_id
         self.autocommit = autocommit
         self.task_attributes = {
@@ -88,28 +106,27 @@ class ExasolEngine(BaseEngine):
             **self.task_attributes
         )
 
-    def aggregation_operator(self, task_id, dag, target, agg, params, item):
+    def aggregation_operator(self, dag, src_column_names, agg, params, item):
         select = Config.render(agg.query, params)
-        if item is None:
+        if not item:
             # nothing parameterized
             where = ''
-            columns = target.src_column_names(agg.name)
-            tmp_table = self._aggregation_table_name(target, agg)
-        elif isinstance(item[1], list):
+            columns = src_column_names
+            tmp_table = self._aggregation_table_name(dag, agg)
+        elif not agg.parameterize:
             # parameterized context
-            where = "WHERE %s in (%s)" % (item[0],
-                                          ', '.join([self.db_str(i) for i in item[1]]))
-            columns = target.src_column_names(agg.name)
-            tmp_table = self._aggregation_table_name(target, agg)
+            where = "WHERE %s = %s" % (agg.context.item_column, self.db_str(item))
+            columns = src_column_names
+            tmp_table = self._aggregation_table_name(dag, agg)
         else:
             # parameterized context and aggregation
             where = ''
-            columns = [n if n != item[0] else "%s as %s" % (self.db_str(item[1]), item[0]) for n in target.src_column_names(agg.name)]
-            tmp_table = self._aggregation_table_name(target, agg, item[1])
+            columns = [n if n != agg.context.item_column else "%s as %s" % (self.db_str(item), agg.context.item_column) for n in src_column_names]
+            tmp_table = self._aggregation_table_name(dag, agg)
         columns = ', '.join(columns)
         sql = "CREATE TABLE {tmp_table} AS\nSELECT\n{columns} FROM ({select}) sub {where}"
         return JdbcOperator(
-            task_id=task_id,
+            task_id=self._aggregation_operator_id(agg),
             jdbc_conn_id=self.conn_id,
             dag=dag,
             sql=sql.format(tmp_table=tmp_table, columns=columns, select=select, where=where),
@@ -117,13 +134,19 @@ class ExasolEngine(BaseEngine):
             **self.task_attributes
         )
 
-    def init_operator(self, task_id, dag, target):
+    def prepare_operator(self, dag, agg, target, item):
         if not target.is_timeseries():
-            return self._dummy_operator(task_id, dag)
-        sql = "DELETE FROM %s WHERE %s = '{{ ds }}'" % (target.table(), target.timeseries_key)
+            return self._dummy_operator(self._prepare_operator_id(agg, target), dag)
+        set_cols = ', '.join("%s = NULL" % c for c in target.aggregated_columns(agg.name))
+        where_item=' AND %s = %s' % (agg.context.item_column, self.db_str(item)) if item else ''
+        sql = "UPDATE {target_table} SET {set_cols} WHERE {timeseries_col} = '{{{{ ds }}}}'{where_item}".format(
+            target_table=target.table(),
+            set_cols=set_cols,
+            timeseries_col=target.timeseries_key,
+            where_item=where_item,
+        )
         return JdbcOperator(
-            task_id=task_id,
-            jdbc_conn_id=self.conn_id,
+            task_id=self._prepare_operator_id(agg, target),
             dag=dag,
             sql=sql,
             autocommit=self.autocommit,
@@ -141,14 +164,15 @@ INSERT ({in_cols})
 VALUES ({in_vals})
         """
 
-    def merge_operator(self, task_id, dag, target, agg, item):
+    def merge_operator(self, dag, agg, target, item):
         key_columns = target.key_columns
-        agg_src_columns = [c.src_column_name for c in agg.columns.values()]
-        src_cols = ', '.join(key_columns + agg_src_columns)
+        agg_src_columns = target.src_column_names(agg.name)
+        src_cols = ', '.join(agg_src_columns)
         on_cols = ' AND '.join(["tbl.%s=tmp.%s" % (c, c) for c in key_columns])
-        agg_columns = [c for c in agg.columns.keys()]
-        in_cols = ', '.join(key_columns + agg_columns)
-        in_vals = ', '.join(["tmp.%s" % c for c in (key_columns + agg_src_columns)])
+        agg_columns = target.aggregated_columns(agg.name)
+        agg_column_names = [c for c in agg_columns.keys()]
+        in_cols = ', '.join(key_columns + agg_column_names)
+        in_vals = ', '.join(["tmp.%s" % c for c in (agg_src_columns)])
 
         def update_op(agg_col):
             if agg_col.update_type.upper() == AggregatedColumn.replace_update_type:
@@ -165,10 +189,10 @@ VALUES ({in_vals})
                     tbl_col_name=agg_col.name, tmp_col_name=agg_col.src_column_name)
             return None
 
-        set_cols = ', '.join([update_op(c) for c in agg.columns.values() if update_op(c) is not None])
+        set_cols = ', '.join([update_op(c) for c in agg_columns.values() if update_op(c) is not None])
         sql = self._merge_query_template.format(
             target_table=target.table(),
-            tmp_table=self._aggregation_table_name(target, agg, item),
+            tmp_table=self._aggregation_table_name(dag, agg),
             on_cols=on_cols,
             src_cols=src_cols,
             in_cols=in_cols,
@@ -176,21 +200,21 @@ VALUES ({in_vals})
             set_cols=set_cols
         )
         return JdbcOperator(
-            task_id=task_id,
+            task_id=self._merge_operator_id(agg, target),
             jdbc_conn_id=self.conn_id,
             dag=dag,
             sql=sql,
             autocommit=self.autocommit,
-            depends_on_past=(not target.is_timeseries() and agg.depends_on_past()),
+            depends_on_past=target.depends_on_past(agg.name),
             **self.task_attributes
         )
 
-    def cleanup_operator(self, task_id, dag, target, agg, item):
+    def cleanup_operator(self, dag, agg, item):
         return JdbcOperator(
-            task_id=task_id,
+            task_id=self._cleanup_operator_id(agg),
             jdbc_conn_id=self.conn_id,
             dag=dag,
-            sql='DROP TABLE IF EXISTS %s' % (self._aggregation_table_name(target, agg, item)),
+            sql='DROP TABLE IF EXISTS %s' % (self._aggregation_table_name(dag, agg)),
             autocommit=self.autocommit,
             **self.task_attributes
         )
@@ -202,7 +226,7 @@ VALUES ({in_vals})
         else:
             return val
 
-    def param_column_op(self, task_id, dag, target, params, item):
+    def param_column_op(self, dag, target, params, item):
         sql = []
         for column, pname in target.parameter_columns.iteritems():
             sql.append(
@@ -215,7 +239,7 @@ VALUES ({in_vals})
         if item:
             sql = ["%s AND %s = %s" % (s, target.context.item_column, self.db_str(item)) for s in sql]
         return JdbcOperator(
-            task_id=task_id,
+            task_id=self._param_column_operator_id(target),
             jdbc_conn_id=self.conn_id,
             dag=dag,
             sql=sql,
@@ -224,8 +248,5 @@ VALUES ({in_vals})
             **self.task_attributes
         )
 
-    @staticmethod
-    def _aggregation_table_name(target, agg, item=None):
-        if item:
-            return '%s_tmp.%s_agg_%s_%s_{{ ds_nodash }}' % (target.schema, target.name, agg.name, item)
-        return '%s_tmp.%s_agg_%s_{{ ds_nodash }}' % (target.schema, target.name, agg.name)
+    def _aggregation_table_name(self, dag, agg):
+        return '%s.%s_agg_%s_{{ ds_nodash }}' % (self.tmp_schema, dag.dag_id.replace('.', '_'), agg.name)
