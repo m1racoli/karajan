@@ -36,7 +36,7 @@ class Conductor(object):
         if self.context.is_parameterized() and import_subdags:
             for t in dag.tasks:
                 if isinstance(t, SubDagOperator):
-                    d = t.dag
+                    d = t.subdag
                     dags[d.dag_id] = d
 
         if output is not None:
