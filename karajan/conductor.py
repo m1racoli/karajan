@@ -18,7 +18,7 @@ class Conductor(object):
         self.targets = [Target(n, c, self.context) for n, c in self.conf['targets'].iteritems()]
         self.aggregations = {n: Aggregation(n, c, self.context) for n, c in self.conf['aggregations'].iteritems()}
 
-    def build(self, dag_id, engine=BaseEngine(), output=None):
+    def build(self, dag_id, engine=BaseEngine(), output=None, import_subdags=False):
 
         if not self.targets:
             return {}
@@ -31,10 +31,18 @@ class Conductor(object):
         for item, params in self.context.params().iteritems():
             self._build_subdag(item, params, engine, dag)
 
-        if output is not None:
-            output[dag_id] = dag
+        dags = {dag_id: dag}
 
-        return {dag_id: dag}
+        if self.context.is_parameterized() and import_subdags:
+            for t in dag.tasks:
+                if isinstance(t, SubDagOperator):
+                    d = t.dag
+                    dags[d.dag_id] = d
+
+        if output is not None:
+            output.update(dags)
+
+        return dags
 
     def _build_subdag(self, item, params, engine, parent_dag):
         if item:
