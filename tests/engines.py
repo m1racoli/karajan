@@ -1,99 +1,54 @@
 from datetime import datetime, date, timedelta
 from unittest import TestCase
 
+from airflow.exceptions import AirflowException
 from airflow.operators.dummy_operator import DummyOperator
 from airflow.operators.sensors import SqlSensor, TimeDeltaSensor, ExternalTaskSensor
 
 from nose.tools import assert_equal
 
+from karajan.conductor import Conductor
 from karajan.dependencies import TrackingDependency, DeltaDependency, NothingDependency, TaskDependency
 from karajan.engines import ExasolEngine
+from tests.helpers.config import ConfigHelper
 
 
 class TestExasolEngine(TestCase):
-    class Stub(object):
-        def __init__(self, **kwargs):
-            for k,v in kwargs.iteritems():
-                setattr(self, k,v)
-
-        def setattr(self, attr, value):
-            setattr(self, attr, value)
-
     def setUp(self):
         self.engine = ExasolEngine()
+        self.conf = ConfigHelper()
 
-    def test_agg_op_wo_param(self):
-        target = TestExasolEngine.Stub(
-            name='test_table',
-            schema='test_schema',
-            src_column_names = lambda x: ['test_column'],
-        )
-        agg = TestExasolEngine.Stub(
-            name="test_agg",
-            query="SELECT * FROM {{ default }}",
-        )
-        params = {'default': 'DUAL'}
-        task_id = 'aggregate_test_agg'
-        op = self.engine.aggregation_operator(task_id, None, target, agg, params, None)
-        expected = "CREATE TABLE test_schema_tmp.test_table_agg_test_agg_{{ ds_nodash }} AS\nSELECT\ntest_column FROM (SELECT * FROM DUAL) sub "
-        assert_equal(expected, op.sql)
+    def build_dags(self):
+        self.dags = Conductor(self.conf).build(engine=self.engine)
+        return self
 
-    def test_agg_op_w_param_context(self):
-        target = TestExasolEngine.Stub(
-            name='test_table',
-            schema='test_schema',
-            src_column_names = lambda x: ['item_column', 'test_column'],
-        )
-        agg = TestExasolEngine.Stub(
-            name="test_agg",
-            query="SELECT * FROM {{ default }}",
-        )
-        params = {'default': 'DUAL'}
-        task_id = 'aggregate_test_agg'
-        op = self.engine.aggregation_operator(task_id, None, target, agg, params, ('item_column', ['g9i', 'g9']))
-        expected = "CREATE TABLE test_schema_tmp.test_table_agg_test_agg_{{ ds_nodash }} AS\nSELECT\nitem_column, test_column FROM (SELECT * FROM DUAL) sub WHERE item_column in ('g9i', 'g9')"
-        assert_equal(expected, op.sql)
+    def get_operator(self, task_id, dag_id='test_table'):
+        try:
+            return self.dags[dag_id].get_task(task_id)
+        except AirflowException as e:
+            print('%s found in %s' % (self.dags[dag_id].task_ids, dag_id))
+            raise e
 
-    def test_agg_op_w_param_context_agg(self):
-        target = TestExasolEngine.Stub(
-            name='test_table',
-            schema='test_schema',
-            src_column_names = lambda x: ['item_column', 'test_column'],
-        )
-        agg = TestExasolEngine.Stub(
-            name="test_agg",
-            query="SELECT * FROM {{ item }}",
-        )
-        params = {'item': 'DUAL'}
-        task_id = 'aggregate_test_agg_g9i'
-        op = self.engine.aggregation_operator(task_id, None, target, agg, params, ('item_column', 'g9i'))
-        expected = "CREATE TABLE test_schema_tmp.test_table_agg_test_agg_g9i_{{ ds_nodash }} AS\nSELECT\n'g9i' as item_column, test_column FROM (SELECT * FROM DUAL) sub "
-        assert_equal(expected, op.sql)
+    def test_aggregation_operator_without_parameterization(self):
+        op = self.build_dags().get_operator('aggregate_test_aggregation')
+        expected = "CREATE TABLE test_schema_tmp.test_table_agg_test_aggregation_{{ ds_nodash }} AS\nSELECT\nkey_column, test_src_column FROM (SELECT * FROM DUAL) sub "
+        assert_str_equal(expected, op.sql)
 
-    def test_param_column_op_w_item(self):
-        context = TestExasolEngine.Stub(
-            item_column='item_column'
-        )
-        target = TestExasolEngine.Stub(
-            name='test_table',
-            schema='test_schema',
-            parameter_columns={
-                'date_col': 'date',
-                'datetime_col': 'datetime',
-                'number_col': 'number',
-                'bool_col': 'bool',
-            },
-            context=context
-        )
-        task_id = 'merge_parameter_columns'
-        params = {
-            'item': 'g9',
-            'date': date(2017, 1, 1),
-            'datetime': datetime(2017, 1, 1, 0, 0, 0),
-            'number': 42,
-            'bool': True,
-        }
-        op = self.engine.param_column_op(task_id, None, target, params, 'g9')
+    def test_aggregation_operator_with_parameterized_context(self):
+        self.conf.parameterize_context()
+        op = self.build_dags().get_operator('aggregate_test_aggregation')
+        expected = "CREATE TABLE test_schema_tmp.test_table_agg_test_aggregation_{{ ds_nodash }} AS\nSELECT\nkey_column, item_column, test_src_column FROM (SELECT * FROM DUAL) sub WHERE item_column in ('g9', 'g9i')"
+        assert_str_equal(expected, op.sql)
+
+    def test_aggregation_operator_with_parameterized_context_and_aggregation(self):
+        self.conf.parameterize_context().parameterize_aggregation()
+        op = self.build_dags().get_operator('aggregate_test_aggregation_g9i')
+        expected = "CREATE TABLE test_schema_tmp.test_table_agg_test_aggregation_g9i_{{ ds_nodash }} AS\nSELECT\nkey_column, 'g9i' as item_column, test_src_column FROM (SELECT * FROM g9i) sub "
+        assert_str_equal(expected, op.sql)
+
+    def test_param_column_operator_with_item(self):
+        self.conf.parameterize_context().with_parameter_columns()
+        op = self.build_dags().get_operator('merge_parameter_columns_g9')
         expected = [
             "UPDATE test_schema.test_table SET datetime_col = '2017-01-01 00:00:00' WHERE (datetime_col IS NULL OR datetime_col != '2017-01-01 00:00:00') AND item_column = 'g9'",
             "UPDATE test_schema.test_table SET number_col = 42 WHERE (number_col IS NULL OR number_col != 42) AND item_column = 'g9'",
@@ -103,29 +58,9 @@ class TestExasolEngine(TestCase):
         assert_equal(expected, op.sql)
         assert_equal(True, op.depends_on_past)
 
-    def test_param_column_op_wo_item(self):
-        context = TestExasolEngine.Stub(
-            item_column='item_column'
-        )
-        target = TestExasolEngine.Stub(
-            name='test_table',
-            schema='test_schema',
-            parameter_columns={
-                'date_col': 'date',
-                'datetime_col': 'datetime',
-                'number_col': 'number',
-                'bool_col': 'bool',
-            },
-            context=context
-        )
-        task_id = 'merge_parameter_columns'
-        params = {
-            'date': date(2017, 1, 1),
-            'datetime': datetime(2017, 1, 1, 0, 0, 0),
-            'number': 42,
-            'bool': True,
-        }
-        op = self.engine.param_column_op(task_id, None, target, params, '')
+    def test_param_column_operator_without_item(self):
+        self.conf.with_parameter_columns()
+        op = self.build_dags().get_operator('merge_parameter_columns')
         expected = [
             "UPDATE test_schema.test_table SET datetime_col = '2017-01-01 00:00:00' WHERE (datetime_col IS NULL OR datetime_col != '2017-01-01 00:00:00')",
             "UPDATE test_schema.test_table SET number_col = 42 WHERE (number_col IS NULL OR number_col != 42)",
@@ -181,121 +116,84 @@ class TestExasolEngine(TestCase):
             exception = e
         assert_equal(True, isinstance(exception, StandardError))
 
-    def test_merge_op_wo_item(self):
-        agg_column = TestExasolEngine.Stub(
-            name='test_column',
-            src_column_name='test_agg_column',
-            update_type='MAX',
-        )
-        target = TestExasolEngine.Stub(
-            name='test_table',
-            schema='test_schema',
-            key_columns=['item_column'],
-            table= lambda: "test_schema.test_table",
-            is_timeseries=lambda: False,
-        )
-        task_id = 'merge_parameter_columns'
-        agg = TestExasolEngine.Stub(
-            name='test_agg',
-            columns={'test_column': agg_column},
-            depends_on_past=lambda: False,
-        )
-        op = self.engine.merge_operator(task_id, None, target, agg, '')
+    def test_merge_operator_without_parameterization(self):
+        op = self.build_dags().get_operator('merge_test_aggregation')
         expected = """
 MERGE INTO test_schema.test_table tbl
-USING (SELECT item_column, test_agg_column FROM test_schema_tmp.test_table_agg_test_agg_{{ ds_nodash }}) tmp
-ON tbl.item_column=tmp.item_column
+USING (SELECT key_column, test_src_column FROM test_schema_tmp.test_table_agg_test_aggregation_{{ ds_nodash }}) tmp
+ON tbl.key_column=tmp.key_column
 WHEN MATCHED THEN
 UPDATE SET
-tbl.test_column = COALESCE(GREATEST(tbl.test_column, tmp.test_agg_column), tbl.test_column, tmp.test_agg_column)
+tbl.test_column = IFNULL(tmp.test_src_column, tbl.test_column)
 WHEN NOT MATCHED THEN
-INSERT (item_column, test_column)
-VALUES (tmp.item_column, tmp.test_agg_column)
+INSERT (key_column, test_column)
+VALUES (tmp.key_column, tmp.test_src_column)
         """
-        assert_equal(False, op.depends_on_past)
         assert_str_equal(expected, op.sql)
 
-    def test_merge_op_w_item(self):
-        agg_column = TestExasolEngine.Stub(
-            name='test_column',
-            src_column_name='test_agg_column',
-            update_type='REPLACE',
-        )
-        target = TestExasolEngine.Stub(
-            name='test_table',
-            schema='test_schema',
-            key_columns=['item_column'],
-            table= lambda: "test_schema.test_table",
-            is_timeseries=lambda: False,
-        )
-        task_id = 'merge_parameter_columns'
-        agg = TestExasolEngine.Stub(
-            name='test_agg',
-            columns={'test_column': agg_column},
-            depends_on_past=lambda: True,
-        )
-        op = self.engine.merge_operator(task_id, None, target, agg, 'g9i')
+    def test_merge_operator_with_parameterized_context(self):
+        self.conf.parameterize_context()
+        op = self.build_dags().get_operator('merge_test_aggregation')
         expected = """
 MERGE INTO test_schema.test_table tbl
-USING (SELECT item_column, test_agg_column FROM test_schema_tmp.test_table_agg_test_agg_g9i_{{ ds_nodash }}) tmp
-ON tbl.item_column=tmp.item_column
+USING (SELECT key_column, item_column, test_src_column FROM test_schema_tmp.test_table_agg_test_aggregation_{{ ds_nodash }}) tmp
+ON tbl.key_column=tmp.key_column AND tbl.item_column=tmp.item_column
 WHEN MATCHED THEN
 UPDATE SET
-tbl.test_column = IFNULL(tmp.test_agg_column, tbl.test_column)
+tbl.test_column = IFNULL(tmp.test_src_column, tbl.test_column)
 WHEN NOT MATCHED THEN
-INSERT (item_column, test_column)
-VALUES (tmp.item_column, tmp.test_agg_column)
+INSERT (key_column, item_column, test_column)
+VALUES (tmp.key_column, tmp.item_column, tmp.test_src_column)
         """
         assert_equal(True, op.depends_on_past)
         assert_str_equal(expected, op.sql)
 
-    def test_cleanup_op_w_item(self):
-        target = TestExasolEngine.Stub(
-            name='test_table',
-            schema='test_schema',
-        )
-        task_id = 'cleanup_test_agg_g9i'
-        agg = TestExasolEngine.Stub(
-            name='test_agg',
-        )
-        op = self.engine.cleanup_operator(task_id, None, target, agg, 'g9i')
-        expected = "DROP TABLE IF EXISTS test_schema_tmp.test_table_agg_test_agg_g9i_{{ ds_nodash }}"
+    def test_merge_operator_with_parameterized_contextand_aggregation(self):
+        self.conf.parameterize_context().parameterize_aggregation()
+        op = self.build_dags().get_operator('merge_test_aggregation_g9i')
+        expected = """
+MERGE INTO test_schema.test_table tbl
+USING (SELECT key_column, item_column, test_src_column FROM test_schema_tmp.test_table_agg_test_aggregation_g9i_{{ ds_nodash }}) tmp
+ON tbl.key_column=tmp.key_column AND tbl.item_column=tmp.item_column
+WHEN MATCHED THEN
+UPDATE SET
+tbl.test_column = IFNULL(tmp.test_src_column, tbl.test_column)
+WHEN NOT MATCHED THEN
+INSERT (key_column, item_column, test_column)
+VALUES (tmp.key_column, tmp.item_column, tmp.test_src_column)
+        """
+        assert_equal(True, op.depends_on_past)
         assert_str_equal(expected, op.sql)
 
-    def test_cleanup_op_wo_item(self):
-        target = TestExasolEngine.Stub(
-            name='test_table',
-            schema='test_schema',
-        )
-        task_id = 'cleanup_test_agg'
-        agg = TestExasolEngine.Stub(
-            name='test_agg',
-        )
-        op = self.engine.cleanup_operator(task_id, None, target, agg, '')
-        expected = "DROP TABLE IF EXISTS test_schema_tmp.test_table_agg_test_agg_{{ ds_nodash }}"
+    def test_cleanup_operator_without_parameterization(self):
+        op = self.build_dags().get_operator('cleanup_test_aggregation')
+        expected = "DROP TABLE IF EXISTS test_schema_tmp.test_table_agg_test_aggregation_{{ ds_nodash }}"
         assert_str_equal(expected, op.sql)
 
-    def test_init_op_wo_timeseries(self):
-        target = TestExasolEngine.Stub(
-            table=lambda: "test_schema.test_table",
-            is_timeseries=lambda: False,
-        )
-        task_id = 'init'
-        op = self.engine.init_operator(task_id, None, target)
+    def test_cleanup_operator_with_parameterized_context(self):
+        self.conf.parameterize_context()
+        op = self.build_dags().get_operator('cleanup_test_aggregation')
+        expected = "DROP TABLE IF EXISTS test_schema_tmp.test_table_agg_test_aggregation_{{ ds_nodash }}"
+        assert_str_equal(expected, op.sql)
+
+    def test_cleanup_operator_with_parameterized_context_and_aggregation(self):
+        self.conf.parameterize_context().parameterize_aggregation()
+        op = self.build_dags().get_operator('cleanup_test_aggregation_g9i')
+        expected = "DROP TABLE IF EXISTS test_schema_tmp.test_table_agg_test_aggregation_g9i_{{ ds_nodash }}"
+        assert_str_equal(expected, op.sql)
+
+    def test_init_operator_without_timeseries(self):
+        op = self.build_dags().get_operator('init')
         assert_equal(isinstance(op, DummyOperator), True)
 
     def test_init_op_w_timeseries(self):
-        target = TestExasolEngine.Stub(
-            table=lambda: "test_schema.test_table",
-            timeseries_key= 'timeseries_column',
-            is_timeseries= lambda: True,
-        )
-        task_id = 'init'
-        op = self.engine.init_operator(task_id, None, target)
+        self.conf.with_timeseries()
+        op = self.build_dags().get_operator('init')
         expected = "DELETE FROM test_schema.test_table WHERE timeseries_column = '{{ ds }}'"
         assert_str_equal(expected, op.sql)
 
 
+# TODO sql equal check
 def assert_str_equal(actual, expected, strip=True):
     actual = actual.split('\n')
     expected = expected.split('\n')

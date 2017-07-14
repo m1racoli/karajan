@@ -17,7 +17,7 @@ class ModelBase(object, Validatable):
 class Context(ModelBase):
     def __init__(self, conf):
         self.items = conf.get('items', {})
-        for k,v in self.items.iteritems():
+        for k, v in self.items.iteritems():
             if not v:
                 self.items[k] = {}
         self.defaults = conf.get('defaults', {})
@@ -55,6 +55,7 @@ class Context(ModelBase):
                 params.update(self.items[item])
                 params['item'] = item
                 return params
+
             return {k: make_params(k) for k in target.items}
         else:
             return {'': self.defaults}
@@ -195,9 +196,11 @@ class Aggregation(ModelBase):
         if not self.context.is_parameterized():
             return False
         query = self.query.replace('\n', ' ')  # wildcard doesn't match linebreaks
-        for k in self.context.item_keys():
-            if self._param_regex(k).match(query):
-                return True
+        if self._param_regex('item').match(query):  # might change in the future
+            return True
+        # for k in self.context.item_keys():
+        #     if self._param_regex(k).match(query):
+        #         return True
         return False
 
     @staticmethod
@@ -206,3 +209,6 @@ class Aggregation(ModelBase):
 
     def has_dependencies(self):
         return self.dependencies is not None
+
+    def depends_on_past(self):
+        return any(ac.depends_on_past() for ac in self.columns.values())
