@@ -206,6 +206,22 @@ VALUES (tmp.key_column, tmp.item_column, tmp.test_src_column)
         expected = "UPDATE test_schema.test_table SET test_column = NULL WHERE timeseries_column = '{{ ds }}' AND item_column = 'item'"
         assert_str_equal(expected, op.sql)
 
+    def test_purge_operator_without_timeseries(self):
+        op = self.build_dags().get_operator('purge_test_table')
+        assert_equal(isinstance(op, DummyOperator), True)
+
+    def test_purge_operator_with_timeseries(self):
+        self.conf.with_timeseries()
+        op = self.build_dags().get_operator('purge_test_table')
+        expected = "DELETE FROM test_schema.test_table WHERE timeseries_column = '{{ ds }}' AND test_column = NULL"
+        assert_str_equal(expected, op.sql)
+
+    def test_purge_operator_with_timeseries_and_parameterized_context(self):
+        self.conf.with_timeseries().parameterize_context()
+        op = self.build_dags().get_operator('purge_test_table', 'item')
+        expected = "DELETE FROM test_schema.test_table WHERE timeseries_column = '{{ ds }}' AND item_column = 'item' AND test_column = NULL"
+        assert_str_equal(expected, op.sql)
+
 
 # TODO sql equal check
 def assert_str_equal(actual, expected, strip=True):

@@ -156,6 +156,7 @@ class ExasolEngine(BaseEngine):
             task_id=self._prepare_operator_id(agg, target),
             dag=dag,
             sql=sql,
+            jdbc_conn_id=self.conn_id,
             autocommit=self.autocommit,
             **self.task_attributes
         )
@@ -222,6 +223,26 @@ VALUES ({in_vals})
             jdbc_conn_id=self.conn_id,
             dag=dag,
             sql='DROP TABLE IF EXISTS %s' % (self._aggregation_table_name(dag, agg)),
+            autocommit=self.autocommit,
+            **self.task_attributes
+        )
+
+    def purge_operator(self, dag, target, item):
+        if not target.is_timeseries():
+            return self._dummy_operator(self._purge_operator_id(target), dag)
+        where_item = ' AND %s = %s' % (target.context.item_column, self.db_str(item)) if item else ''
+        where_agg_col = ' AND '.join("%s = NULL" % c for c in target.aggregated_columns())
+        sql="DELETE FROM {target_table} WHERE {timeseries_key} = '{{{{ ds }}}}'{where_item} AND {where_agg_col}".format(
+            target_table=target.table(),
+            timeseries_key=target.timeseries_key,
+            where_item=where_item,
+            where_agg_col=where_agg_col,
+        )
+        return JdbcOperator(
+            task_id=self._purge_operator_id(target),
+            dag=dag,
+            sql=sql,
+            jdbc_conn_id=self.conn_id,
             autocommit=self.autocommit,
             **self.task_attributes
         )

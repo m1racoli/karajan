@@ -106,8 +106,10 @@ class Target(ModelBase):
             return datetime(o.year, o.month, o.day)
         return o
 
-    def aggregated_columns(self, aggregation_id):
-        return self.aggregations.get(aggregation_id)
+    def aggregated_columns(self, aggregation_id=None):
+        if aggregation_id:
+            return self.aggregations.get(aggregation_id)
+        return {n: ac for v in self.aggregations.values() for n, ac in v.iteritems()}
 
     def is_timeseries(self):
         return self.timeseries_key is not None
