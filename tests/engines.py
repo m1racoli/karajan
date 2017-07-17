@@ -36,6 +36,12 @@ class TestExasolEngine(TestCase):
         expected = "CREATE TABLE tmp_schema.test_dag_agg_test_aggregation_{{ ds_nodash }} AS\nSELECT\ntest_src_column, key_column FROM (SELECT * FROM DUAL) sub "
         assert_str_equal(expected, op.sql)
 
+    def test_aggregation_operator_with_timeseries(self):
+        self.conf.with_timeseries()
+        op = self.build_dags().get_operator('aggregate_test_aggregation')
+        expected = "CREATE TABLE tmp_schema.test_dag_agg_test_aggregation_{{ ds_nodash }} AS\nSELECT\ntimeseries_column, test_src_column, key_column FROM (SELECT * FROM DUAL) sub "
+        assert_str_equal(expected, op.sql)
+
     def test_aggregation_operator_with_parameterized_context(self):
         self.conf.parameterize_context()
         op = self.build_dags().get_operator('aggregate_test_aggregation', subdag='item')
@@ -165,6 +171,22 @@ INSERT (key_column, item_column, test_column)
 VALUES (tmp.key_column, tmp.item_column, tmp.test_src_column)
         """
         assert_equal(True, op.depends_on_past)
+        assert_str_equal(expected, op.sql)
+
+    def test_merge_operator_with_timeseries(self):
+        self.conf.with_timeseries()
+        op = self.build_dags().get_operator('merge_test_aggregation_test_table')
+        expected = """
+        MERGE INTO test_schema.test_table tbl
+        USING (SELECT key_column, timeseries_column, test_src_column FROM tmp_schema.test_dag_agg_test_aggregation_{{ ds_nodash }}) tmp
+        ON tbl.key_column=tmp.key_column AND tbl.timeseries_column=tmp.timeseries_column
+        WHEN MATCHED THEN
+        UPDATE SET
+        tbl.test_column = IFNULL(tmp.test_src_column, tbl.test_column)
+        WHEN NOT MATCHED THEN
+        INSERT (key_column, timeseries_column, test_column)
+        VALUES (tmp.key_column, tmp.timeseries_column, tmp.test_src_column)
+                """
         assert_str_equal(expected, op.sql)
 
     def test_cleanup_operator_without_parameterization(self):
