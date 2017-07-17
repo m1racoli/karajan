@@ -213,14 +213,23 @@ VALUES (tmp.key_column, tmp.item_column, tmp.test_src_column)
     def test_purge_operator_with_timeseries(self):
         self.conf.with_timeseries()
         op = self.build_dags().get_operator('purge_test_table')
-        expected = "DELETE FROM test_schema.test_table WHERE timeseries_column = '{{ ds }}' AND test_column = NULL"
-        assert_str_equal(expected, op.sql)
+        # expected = "DELETE FROM test_schema.test_table WHERE timeseries_column = '{{ ds }}' AND test_column = NULL"
+        # assert_str_equal(expected, op.sql)
+        assert_equal(isinstance(op, DummyOperator), True)
 
     def test_purge_operator_with_timeseries_and_parameterized_context(self):
         self.conf.with_timeseries().parameterize_context()
         op = self.build_dags().get_operator('purge_test_table', 'item')
-        expected = "DELETE FROM test_schema.test_table WHERE timeseries_column = '{{ ds }}' AND item_column = 'item' AND test_column = NULL"
-        assert_str_equal(expected, op.sql)
+        # expected = "DELETE FROM test_schema.test_table WHERE timeseries_column = '{{ ds }}' AND item_column = 'item' AND test_column = NULL"
+        # assert_str_equal(expected, op.sql)
+        assert_equal(isinstance(op, DummyOperator), True)
+
+    def test_purge_operator_with_timeseries_and_offset(self):
+        self.conf.with_timeseries().with_offset()
+        op = self.build_dags().get_operator('purge_test_table')
+        # expected = "DELETE FROM test_schema.test_table WHERE timeseries_column = '{{ macros.ds_add(ds, -1) }}' AND test_column = NULL"
+        # assert_str_equal(expected, op.sql)
+        assert_equal(isinstance(op, DummyOperator), True)
 
 
 # TODO sql equal check

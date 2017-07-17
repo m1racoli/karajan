@@ -71,3 +71,8 @@ class ConfigHelper(dict):
         self['targets'][target_id]['timeseries_key'] = 'timeseries_column'
         self['targets'][target_id]['key_columns'].append('timeseries_column')
         return self
+
+    def with_offset(self, offset=1, aggregation_id='test_aggregation'):
+        self['aggregations'][aggregation_id]['offset'] = offset
+        self['aggregations'][aggregation_id]['query'] = "SELECT * FROM DUAL WHERE dt = '{{ ds }}'"
+        return self
