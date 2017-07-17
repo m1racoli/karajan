@@ -54,6 +54,12 @@ class TestExasolEngine(TestCase):
         expected = "CREATE TABLE tmp_schema.test_dag_item_agg_test_aggregation_{{ ds_nodash }} AS\nSELECT\ntest_src_column, key_column, 'item' as item_column FROM (SELECT * FROM item) sub "
         assert_str_equal(expected, op.sql)
 
+    def test_aggregation_operator_with_offset(self):
+        self.conf.with_offset()
+        op = self.build_dags().get_operator('aggregate_test_aggregation')
+        expected = "CREATE TABLE tmp_schema.test_dag_agg_test_aggregation_{{ ds_nodash }} AS\nSELECT\ntest_src_column, key_column FROM (SELECT * FROM DUAL WHERE dt = '{{ macros.ds_add(ds, -1) }}') sub"
+        assert_str_equal(expected, op.sql)
+
     def test_param_column_operator_with_item(self):
         self.conf.parameterize_context().with_parameter_columns()
         op = self.build_dags().get_operator('fill_parameter_columns_test_table', 'item')
@@ -226,6 +232,12 @@ VALUES (tmp.key_column, tmp.item_column, tmp.test_src_column)
         self.conf.with_timeseries().parameterize_context().parameterize_aggregation()
         op = self.build_dags().get_operator('prepare_test_aggregation_test_table', 'item')
         expected = "UPDATE test_schema.test_table SET test_column = NULL WHERE timeseries_column = '{{ ds }}' AND item_column = 'item'"
+        assert_str_equal(expected, op.sql)
+
+    def test_prepare_operator_with_timeseries_and_offset(self):
+        self.conf.with_timeseries().with_offset()
+        op = self.build_dags().get_operator('prepare_test_aggregation_test_table')
+        expected = "UPDATE test_schema.test_table SET test_column = NULL WHERE timeseries_column = '{{ macros.ds_add(ds, -1) }}'"
         assert_str_equal(expected, op.sql)
 
     def test_purge_operator_without_timeseries(self):

@@ -180,6 +180,7 @@ class Aggregation(ModelBase):
         self.context = context
         self.query = conf.get('query', '')
         self.dependencies = conf.get('dependencies')
+        self.offset = conf.get('offset', 0)
         self.parameterize = self._check_parameterize()
         super(Aggregation, self).__init__(name)
 

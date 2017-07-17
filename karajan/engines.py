@@ -116,7 +116,10 @@ class ExasolEngine(BaseEngine):
         )
 
     def aggregation_operator(self, dag, src_column_names, agg, params, item):
-        select = Config.render(agg.query, params)
+        if agg.offset:
+            select = Config.render(agg.query, params, {'ds': 'macros.ds_add(ds, -%i)' % agg.offset})
+        else:
+            select = Config.render(agg.query, params)
         if not item:
             # nothing parameterized
             where = ''
@@ -147,12 +150,14 @@ class ExasolEngine(BaseEngine):
         if not target.is_timeseries():
             return self._dummy_operator(self._prepare_operator_id(agg, target), dag)
         set_cols = ', '.join("%s = NULL" % c for c in target.aggregated_columns(agg.name))
+        date = '{{ macros.ds_add(ds, -%i) }}' % agg.offset if agg.offset else '{{ ds }}'
         where_item=' AND %s = %s' % (agg.context.item_column, self.db_str(item)) if item else ''
-        sql = "UPDATE {target_table} SET {set_cols} WHERE {timeseries_col} = '{{{{ ds }}}}'{where_item}".format(
+        sql = "UPDATE {target_table} SET {set_cols} WHERE {timeseries_col} = '{date}'{where_item}".format(
             target_table=target.table(),
             set_cols=set_cols,
             timeseries_col=target.timeseries_key,
             where_item=where_item,
+            date=date,
         )
         return JdbcOperator(
             task_id=self._prepare_operator_id(agg, target),
