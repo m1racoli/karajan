@@ -19,6 +19,29 @@ class ConfigHelper(dict):
                                 'column_name': 'test_src_column',
                                 'update_type': 'REPLACE',
                             },
+                            'another_test_column': {
+                                'column_name': 'another_test_src_column',
+                                'update_type': 'MAX',
+                            },
+                        },
+                        'another_aggregation': {
+                            'another_aggregation_test_column': {
+                                'column_name': 'another_aggregation_test_src_column',
+                                'update_type': 'KEEP',
+                            }
+                        },
+                    },
+                },
+                'another_table': {
+                    'start_date': datetime.now(),
+                    'schema': 'another_test_schema',
+                    'key_columns': ['key_column'],
+                    'aggregated_columns': {
+                        'test_aggregation': {
+                            'test_column': {
+                                'column_name': 'another_table_test_src_column',
+                                'update_type': 'MIN',
+                            },
                         },
                     },
                 },
@@ -26,6 +49,9 @@ class ConfigHelper(dict):
             'aggregations': {
                 'test_aggregation': {
                     'query': 'SELECT * FROM DUAL',
+                },
+                'another_aggregation': {
+                    'query': 'SELECT everything FROM here',
                 },
             },
         }
