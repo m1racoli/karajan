@@ -19,8 +19,6 @@ class BaseEngine(object):
             return self.nothing_dependency_operator(task_id, dag)
         elif isinstance(dep, TaskDependency):
             return self.task_dependency_operator(task_id, dag, dep)
-        elif isinstance(dep, TargetDependency):
-            return dep
         else:
             raise StandardError("Dependency operator for %s not found" % type(dep))
 
