@@ -66,8 +66,16 @@ def step_impl(context, dag_id, task_id):
 def step_impl(context, task_id, dag_id, task_type):
     assert_equals(type(get_dag(context, dag_id).task_dict[task_id]).__name__, task_type)
 
+
 @then(u'in the DAG {dag_id} {downstream_id} should depend on {upstream_id}')
 def step_impl(context, dag_id, downstream_id, upstream_id):
     downstream = get_task(context, dag_id, downstream_id)
     upstream = get_task(context, dag_id, upstream_id)
     assert_contains(downstream.upstream_list, upstream)
+
+
+@then(u'in the DAG {dag_id} {downstream_id} should not depend on {upstream_id}')
+def step_impl(context, dag_id, downstream_id, upstream_id):
+    downstream = get_task(context, dag_id, downstream_id)
+    upstream = get_task(context, dag_id, upstream_id)
+    assert_contains_not(downstream.upstream_list, upstream)

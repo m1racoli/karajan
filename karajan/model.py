@@ -55,6 +55,7 @@ class Context(ModelBase):
                 params.update(self.items[item])
                 params['item'] = item
                 return params
+
             return {k: make_params(k) for k in (target.items if target else self.items)}
         else:
             return {'': self.defaults}
@@ -118,13 +119,26 @@ class Target(ModelBase):
         return True if self.parameter_columns else False
 
     def src_column_names(self, aggregation_id):
-        return self.key_columns + [ac.src_column_name for ac in self.aggregations.get(aggregation_id).values()]
+        return self.key_columns + [ac.src_column_name for ac in self.aggregations.get(aggregation_id, {}).values()]
 
     def depends_on_past(self, aggregation_id):
-        return not self.is_timeseries() and any(ac.depends_on_past() for ac in self.aggregations[aggregation_id].values())
+        return not self.is_timeseries() and any(
+            ac.depends_on_past() for ac in self.aggregations[aggregation_id].values())
 
     def table(self):
         return "%s.%s" % (self.schema, self.name)
+
+    def aggregations_for_columns(self, columns):
+        if not columns:
+            return self.aggregations
+
+        def cols_in(v):
+            for c in columns:
+                if c in v:
+                    return True
+            return False
+
+        return {k: v for k, v in self.aggregations.iteritems() if cols_in(v)}
 
 
 class AggregatedColumn(ModelBase):

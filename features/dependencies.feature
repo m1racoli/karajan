@@ -25,3 +25,21 @@ Feature: Dependencies
       | 2m    |
     When I build the DAGs
     Then in the DAG test aggregate_test should depend on wait_for_120_seconds_delta
+
+  Scenario: Target dependency
+    Given the target another_target with the aggregation another_agg
+    And the aggregation test has a target dependency with the following attributes
+      | target         |
+      | another_target |
+    When I build the DAGs
+    Then in the DAG test aggregate_test should depend on merge_another_target_another_agg
+
+  Scenario: Target dependency with column resolution
+    Given the target another_target with the aggregation another_agg
+    And the target another_target with the aggregation another_unused_agg
+    And the aggregation test has a target dependency with the following attributes
+      | target         | columns            |
+      | another_target | another_agg_column |
+    When I build the DAGs
+    Then in the DAG test aggregate_test should depend on merge_another_target_another_agg
+    And in the DAG test aggregate_test should not depend on merge_another_target_another_unused_agg

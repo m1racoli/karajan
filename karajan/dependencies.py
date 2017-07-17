@@ -55,10 +55,19 @@ class TaskDependency(BaseDependency):
         super(TaskDependency, self).__init__(name)
 
 
+class TargetDependency(BaseDependency):
+    def __init__(self, conf):
+        self.target = conf.get('target')
+        self.columns = conf.get('columns')
+        name = ("target_%s" % self.target).lower()
+        super(TargetDependency, self).__init__(name)
+
+
 d_map = {
     'tracking': TrackingDependency,
     'delta': DeltaDependency,
     'task': TaskDependency,
+    'target': TargetDependency,
 }
 
 
