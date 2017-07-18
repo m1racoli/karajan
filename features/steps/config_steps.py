@@ -73,7 +73,11 @@ def step_impl(context, id, dep_type):
     dep_conf = min_dependency_config(dep_type)
     row = context.table[0]
     for h in row.headings:
-        dep_conf[h] = row[h]
+        if h == 'columns':
+            dep_conf[h] = row[h].split(',')
+        else:
+            dep_conf[h] = row[h]
+
     conf['dependencies'].append(dep_conf)
 
 
@@ -92,3 +96,18 @@ def step_impl(context, id):
     row = context.table[0]
     for h in row.headings:
         conf['parameter_columns'][h] = row[h]
+
+
+@given(u'the target {target_id} with the aggregation {aggregation_id}')
+def step_impl(context, target_id, aggregation_id):
+    conf = get_target_conf(context).get(target_id, {})
+    if not conf:
+        get_target_conf(context)[target_id] = conf
+        conf['start_date'] = datetime.now()
+        conf['schema'] = 'test'
+        conf['key_columns'] = ['key_column']
+    agg_conf = conf.get('aggregated_columns', {})
+    if not agg_conf:
+        conf['aggregated_columns'] = agg_conf
+    agg_conf[aggregation_id] = {'%s_column' % aggregation_id: None}
+    get_aggregation_conf(context)[aggregation_id] = {'query': 'SELECT * FROM DUAL'}

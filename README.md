@@ -20,18 +20,18 @@ defaults:
 item_column: game_key
 ```
 
-### Tables
+### Targets
 
 | name | required | purpose | default |
 | ---- | -------- | ------- | ------- |
 | start_date | required | start date of the DAG |
-| schema | required | DB Schema of the aggregated table |
+| schema | required | DB Schema of the target table |
 | key_columns | required | columns to merge new data on |
 | aggregated_columns | required | column name -> column reference | 
 | timeseries_key | optional | if set, aggregation will be done on per time unit basis |
-| items | optional | run the aggregations for those items |
+| items | if context.items | list of items or '*' |
 
-#### tables.yml
+#### targets.yml
 ```yaml
 daily_user_activities:
   start_date: 2017-06-01
@@ -112,4 +112,18 @@ delta: 2h
 type: task
 task_id: fill_bookings
 dag_id: '{{ item }}'
+```
+
+
+#### Target
+
+| name | purpose |
+| ---- | ------- |
+| target | target table to be used as source |
+| columns | optional list of columns of the target table |
+
+```yaml
+type: target
+target: daily_user_activities
+columns: [country]
 ```

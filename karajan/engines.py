@@ -5,7 +5,7 @@ from airflow.operators.jdbc_operator import JdbcOperator
 from airflow.operators.sensors import SqlSensor, TimeDeltaSensor, ExternalTaskSensor
 
 from karajan.config import Config
-from karajan.dependencies import DeltaDependency, TrackingDependency, NothingDependency, TaskDependency
+from karajan.dependencies import DeltaDependency, TrackingDependency, NothingDependency, TaskDependency, TargetDependency
 from karajan.model import AggregatedColumn
 
 
@@ -19,6 +19,8 @@ class BaseEngine(object):
             return self.nothing_dependency_operator(task_id, dag)
         elif isinstance(dep, TaskDependency):
             return self.task_dependency_operator(task_id, dag, dep)
+        elif isinstance(dep, TargetDependency):
+            return dep
         else:
             raise StandardError("Dependency operator for %s not found" % type(dep))
 
