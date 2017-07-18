@@ -47,7 +47,7 @@ class Context(ModelBase):
         else:
             return self.defaults.keys()
 
-    def params(self, target):
+    def params(self, target=None):
         if self.is_parameterized():
             def make_params(item):
                 params = {}
@@ -55,8 +55,7 @@ class Context(ModelBase):
                 params.update(self.items[item])
                 params['item'] = item
                 return params
-
-            return {k: make_params(k) for k in target.items}
+            return {k: make_params(k) for k in (target.items if target else self.items)}
         else:
             return {'': self.defaults}
 
@@ -80,11 +79,8 @@ class Target(ModelBase):
         self.parameter_columns = conf.get('parameter_columns', {})
         super(Target, self).__init__(name)
 
-    def dag_id(self, prefix=None):
-        if not prefix:
-            return self.name
-        else:
-            return '%s_%s' % (prefix, self.name)
+    def has_item(self, item):
+        return not item or item in self.items
 
     def validate(self):
         self.validate_presence('schema')
@@ -110,14 +106,10 @@ class Target(ModelBase):
             return datetime(o.year, o.month, o.day)
         return o
 
-    def key_items(self):
-        return self.context.items.keys()
-
-    def aggregated_columns(self, aggregation_id):
-        return self.aggregations.get(aggregation_id)
-
-    def aggregation_ids(self):
-        return self.aggregations.keys()
+    def aggregated_columns(self, aggregation_id=None):
+        if aggregation_id:
+            return self.aggregations.get(aggregation_id)
+        return {n: ac for v in self.aggregations.values() for n, ac in v.iteritems()}
 
     def is_timeseries(self):
         return self.timeseries_key is not None
@@ -127,6 +119,9 @@ class Target(ModelBase):
 
     def src_column_names(self, aggregation_id):
         return self.key_columns + [ac.src_column_name for ac in self.aggregations.get(aggregation_id).values()]
+
+    def depends_on_past(self, aggregation_id):
+        return not self.is_timeseries() and any(ac.depends_on_past() for ac in self.aggregations[aggregation_id].values())
 
     def table(self):
         return "%s.%s" % (self.schema, self.name)
@@ -166,26 +161,12 @@ class AggregatedColumn(ModelBase):
         return self.update_type in self._depends_on_past_update_types
 
 
-class Column(ModelBase):
-    def __init__(self, name, conf):
-        if type(conf) == str:
-            self.column_type = conf
-        else:
-            self.column_type = conf.get('column_type')
-        super(Column, self).__init__(name)
-
-    def validate(self):
-        self.validate_presence('column_type')
-        super(Column, self).validate()
-
-
 class Aggregation(ModelBase):
-    def __init__(self, name, conf, columns, context):
+    def __init__(self, name, conf, context):
         self.context = context
         self.query = conf.get('query', '')
         self.dependencies = conf.get('dependencies')
         self.parameterize = self._check_parameterize()
-        self.columns = columns
         super(Aggregation, self).__init__(name)
 
     def validate(self):
@@ -209,6 +190,3 @@ class Aggregation(ModelBase):
 
     def has_dependencies(self):
         return self.dependencies is not None
-
-    def depends_on_past(self):
-        return any(ac.depends_on_past() for ac in self.columns.values())

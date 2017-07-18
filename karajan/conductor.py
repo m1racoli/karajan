@@ -1,4 +1,6 @@
 from airflow.models import DAG
+from airflow.operators.dummy_operator import DummyOperator
+from airflow.operators.subdag_operator import SubDagOperator
 
 from karajan.config import Config
 from karajan.engines import BaseEngine
@@ -13,84 +15,91 @@ class Conductor(object):
         """
         self.conf = Config.load(conf)
         self.context = Context(self.conf['context'])
-        self.targets = {n: Target(n, c, self.context) for n, c in self.conf['targets'].iteritems()}
+        self.targets = [Target(n, c, self.context) for n, c in self.conf['targets'].iteritems()]
+        self.aggregations = {n: Aggregation(n, c, self.context) for n, c in self.conf['aggregations'].iteritems()}
 
-    def build(self, prefix='', engine=BaseEngine(), output=None):
+    def build(self, dag_id, engine=BaseEngine(), output=None, import_subdags=False):
 
-        dags = {}
+        if not self.targets:
+            return {}
 
-        for target in self.targets.values():
-            dag = self._build_dag(prefix, engine, target)
-            dags[dag.dag_id] = dag
+        dag = DAG(dag_id=dag_id, start_date=min(t.start_date for t in self.targets))
 
-        if output:
+        DummyOperator(task_id='init', dag=dag)
+        DummyOperator(task_id='done', dag=dag)
+
+        for item, params in self.context.params().iteritems():
+            self._build_subdag(item, params, engine, dag)
+
+        dags = {dag_id: dag}
+
+        if self.context.is_parameterized() and import_subdags:
+            for t in dag.tasks:
+                if isinstance(t, SubDagOperator):
+                    d = t.subdag
+                    dags[d.dag_id] = d
+
+        if output is not None:
             output.update(dags)
 
         return dags
 
-    def _build_dag(self, prefix, engine, target):
-        dag = DAG(target.dag_id(prefix), start_date=target.start_date)
-        init = engine.init_operator('init', dag, target)
-        done_op = engine.done_operator('done', dag)
-        dep_ops = {}
-        param_col_ops = {}
+    def _build_subdag(self, item, params, engine, parent_dag):
+        if item:
+            # parametrization, so we use sub dags per item
+            dag = DAG(dag_id="%s.%s" % (parent_dag.dag_id, item), start_date=parent_dag.start_date)
+            subdag_op = SubDagOperator(task_id=item, subdag=dag, dag=parent_dag)
+            subdag_op.set_upstream(parent_dag.get_task('init'))
+            subdag_op.set_downstream(parent_dag.get_task('done'))
+            init = DummyOperator(task_id='init', dag=dag)
+            done = DummyOperator(task_id='done', dag=dag)
+        else:
+            # no parametrization, so we use the main dag
+            dag = parent_dag
+            init = dag.get_task('init')
+            done = dag.get_task('done')
 
-        for item, params in self.context.params(target).iteritems():
+        targets = [t for t in self.targets if t.has_item(item)]
+        aggregations = [self.aggregations[a] for a in {a for t in targets for a in t.aggregations}]
+        dependency_operators = {}
+        purge_operators = {}
+
+        for target in targets:
+            purge_operator = engine.purge_operator(dag, target, item)
+            purge_operators[target.name] = purge_operator
+            purge_operator.set_downstream(done)
             if target.has_parameter_columns():
-                param_col_op_name = "merge_parameter_columns_%s" % item if item else "merge_parameter_columns"
-                param_col_op = engine.param_column_op(param_col_op_name, dag, target, params, item)
-                param_col_ops[item] = param_col_op
-                param_col_op.set_downstream(done_op)
+                param_col_op = engine.param_column_op(dag, target, params, item)
+                param_col_op.set_upstream(purge_operator)
+                param_col_op.set_downstream(done)
 
-        for agg_id, agg_columns in target.aggregations.iteritems():
-            agg = Aggregation(agg_id, self.conf['aggregations'][agg_id], agg_columns, self.context)
-            agg_ops = self.get_aggregation_operators(engine, dag, agg, target)
+        for aggregation in aggregations:
+            src_column_names = {c for t in targets for c in t.src_column_names(aggregation.name)}
+            aggregation_operator = engine.aggregation_operator(dag, src_column_names, aggregation, params, item)
+            for dependency in self._get_dependencies(aggregation, params):
+                dep_id = dependency.id()
+                if dep_id not in dependency_operators:
+                    dependency_operator = engine.dependency_operator(dep_id, dag, dependency)
+                    dependency_operators[dep_id] = dependency_operator
+                    dependency_operator.set_upstream(init)
+                aggregation_operator.set_upstream(dependency_operators[dep_id])
 
-            for item, params in self.context.params(target).iteritems():
-                for dep in self._get_dependencies(agg, params):
-                    dep_id = dep.id()
-                    if dep_id not in dep_ops:
-                        dep_op = engine.dependency_operator(dep_id, dag, dep)
-                        dep_ops[dep_id] = dep_op
-                        dep_op.set_upstream(init)
-                    self.agg_set_upstream_dep(agg_ops, dep_id, dep_ops, item)
-                    self.agg_set_upstream_dep(agg_ops, dep_id, dep_ops)
+            clean_operator = engine.cleanup_operator(dag, aggregation, item)
+            clean_operator.set_downstream(done)
 
-            for item, agg_op in agg_ops.iteritems():
-                name = agg_id if not item else '%s_%s' % (agg_id, item)
-                merge_op = engine.merge_operator('merge_%s' % name, dag, target, agg, item)
-                merge_op.set_upstream(agg_op)
-                for i, param_col_op in param_col_ops.iteritems():
-                    if not item or i == item:
-                        merge_op.set_downstream(param_col_op)
+            for target in targets:
+                if aggregation.name not in target.aggregations:
+                    continue
 
-                clean_op = engine.cleanup_operator('cleanup_%s' % name, dag, target, agg, item)
-                clean_op.set_upstream(merge_op)
-                clean_op.set_downstream(done_op)
+                prepare_operator = engine.prepare_operator(dag, aggregation, target, item)
+                prepare_operator.set_upstream(aggregation_operator)
+
+                merge_operator = engine.merge_operator(dag, aggregation, target, item)
+                merge_operator.set_upstream(prepare_operator)
+                merge_operator.set_downstream(clean_operator)
+                merge_operator.set_downstream(purge_operators[target.name])
 
         return dag
-
-    @staticmethod
-    def agg_set_upstream_dep(agg_ops, dep_id, dep_ops, item=''):
-        if item in agg_ops:
-            agg_op = agg_ops[item]
-            if dep_id not in agg_op.upstream_task_ids:
-                agg_op.set_upstream(dep_ops[dep_id])
-
-    def get_aggregation_operators(self, engine, dag, aggregation, target):
-        if self.context.is_parameterized():
-            if aggregation.parameterize:
-                return {
-                    item: engine.aggregation_operator('aggregate_%s_%s' % (aggregation.name, item), dag, target, aggregation, params, (self.context.item_column, item)) for item, params in self.context.params(target).iteritems()
-                }
-            else:
-                return {
-                    '': engine.aggregation_operator('aggregate_%s' % aggregation.name, dag, target, aggregation, self.context.defaults, (self.context.item_column, target.items))
-                }
-        else:
-            return {
-                '': engine.aggregation_operator('aggregate_%s' % aggregation.name, dag, target, aggregation, self.context.defaults, None)
-            }
 
     @staticmethod
     def _get_dependencies(agg, params):

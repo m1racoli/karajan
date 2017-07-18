@@ -15,52 +15,54 @@ from tests.helpers.config import ConfigHelper
 
 class TestExasolEngine(TestCase):
     def setUp(self):
-        self.engine = ExasolEngine()
+        self.engine = ExasolEngine('tmp_schema')
         self.conf = ConfigHelper()
+        self.dags = {}
 
     def build_dags(self):
-        self.dags = Conductor(self.conf).build(engine=self.engine)
+        Conductor(self.conf).build('test_dag', engine=self.engine, output=self.dags)
         return self
 
-    def get_operator(self, task_id, dag_id='test_table'):
+    def get_operator(self, task_id, subdag=None, dag_id='test_dag'):
+        dag = self.dags[dag_id].get_task(subdag).subdag if subdag else self.dags[dag_id]
         try:
-            return self.dags[dag_id].get_task(task_id)
+            return dag.get_task(task_id)
         except AirflowException as e:
-            print('%s found in %s' % (self.dags[dag_id].task_ids, dag_id))
+            print('%s found in %s' % (dag.task_ids, dag))
             raise e
 
     def test_aggregation_operator_without_parameterization(self):
         op = self.build_dags().get_operator('aggregate_test_aggregation')
-        expected = "CREATE TABLE test_schema_tmp.test_table_agg_test_aggregation_{{ ds_nodash }} AS\nSELECT\nkey_column, test_src_column FROM (SELECT * FROM DUAL) sub "
+        expected = "CREATE TABLE tmp_schema.test_dag_agg_test_aggregation_{{ ds_nodash }} AS\nSELECT\ntest_src_column, key_column FROM (SELECT * FROM DUAL) sub "
         assert_str_equal(expected, op.sql)
 
     def test_aggregation_operator_with_parameterized_context(self):
         self.conf.parameterize_context()
-        op = self.build_dags().get_operator('aggregate_test_aggregation')
-        expected = "CREATE TABLE test_schema_tmp.test_table_agg_test_aggregation_{{ ds_nodash }} AS\nSELECT\nkey_column, item_column, test_src_column FROM (SELECT * FROM DUAL) sub WHERE item_column in ('g9', 'g9i')"
+        op = self.build_dags().get_operator('aggregate_test_aggregation', subdag='item')
+        expected = "CREATE TABLE tmp_schema.test_dag_item_agg_test_aggregation_{{ ds_nodash }} AS\nSELECT\ntest_src_column, key_column, item_column FROM (SELECT * FROM DUAL) sub WHERE item_column = 'item'"
         assert_str_equal(expected, op.sql)
 
     def test_aggregation_operator_with_parameterized_context_and_aggregation(self):
         self.conf.parameterize_context().parameterize_aggregation()
-        op = self.build_dags().get_operator('aggregate_test_aggregation_g9i')
-        expected = "CREATE TABLE test_schema_tmp.test_table_agg_test_aggregation_g9i_{{ ds_nodash }} AS\nSELECT\nkey_column, 'g9i' as item_column, test_src_column FROM (SELECT * FROM g9i) sub "
+        op = self.build_dags().get_operator('aggregate_test_aggregation', subdag='item')
+        expected = "CREATE TABLE tmp_schema.test_dag_item_agg_test_aggregation_{{ ds_nodash }} AS\nSELECT\ntest_src_column, key_column, 'item' as item_column FROM (SELECT * FROM item) sub "
         assert_str_equal(expected, op.sql)
 
     def test_param_column_operator_with_item(self):
         self.conf.parameterize_context().with_parameter_columns()
-        op = self.build_dags().get_operator('merge_parameter_columns_g9')
+        op = self.build_dags().get_operator('fill_parameter_columns_test_table', 'item')
         expected = [
-            "UPDATE test_schema.test_table SET datetime_col = '2017-01-01 00:00:00' WHERE (datetime_col IS NULL OR datetime_col != '2017-01-01 00:00:00') AND item_column = 'g9'",
-            "UPDATE test_schema.test_table SET number_col = 42 WHERE (number_col IS NULL OR number_col != 42) AND item_column = 'g9'",
-            "UPDATE test_schema.test_table SET bool_col = True WHERE (bool_col IS NULL OR bool_col != True) AND item_column = 'g9'",
-            "UPDATE test_schema.test_table SET date_col = '2017-01-01' WHERE (date_col IS NULL OR date_col != '2017-01-01') AND item_column = 'g9'",
+            "UPDATE test_schema.test_table SET datetime_col = '2017-01-01 00:00:00' WHERE (datetime_col IS NULL OR datetime_col != '2017-01-01 00:00:00') AND item_column = 'item'",
+            "UPDATE test_schema.test_table SET number_col = 42 WHERE (number_col IS NULL OR number_col != 42) AND item_column = 'item'",
+            "UPDATE test_schema.test_table SET bool_col = True WHERE (bool_col IS NULL OR bool_col != True) AND item_column = 'item'",
+            "UPDATE test_schema.test_table SET date_col = '2017-01-01' WHERE (date_col IS NULL OR date_col != '2017-01-01') AND item_column = 'item'",
         ]
         assert_equal(expected, op.sql)
         assert_equal(True, op.depends_on_past)
 
     def test_param_column_operator_without_item(self):
         self.conf.with_parameter_columns()
-        op = self.build_dags().get_operator('merge_parameter_columns')
+        op = self.build_dags().get_operator('fill_parameter_columns_test_table')
         expected = [
             "UPDATE test_schema.test_table SET datetime_col = '2017-01-01 00:00:00' WHERE (datetime_col IS NULL OR datetime_col != '2017-01-01 00:00:00')",
             "UPDATE test_schema.test_table SET number_col = 42 WHERE (number_col IS NULL OR number_col != 42)",
@@ -117,10 +119,10 @@ class TestExasolEngine(TestCase):
         assert_equal(True, isinstance(exception, StandardError))
 
     def test_merge_operator_without_parameterization(self):
-        op = self.build_dags().get_operator('merge_test_aggregation')
+        op = self.build_dags().get_operator('merge_test_aggregation_test_table')
         expected = """
 MERGE INTO test_schema.test_table tbl
-USING (SELECT key_column, test_src_column FROM test_schema_tmp.test_table_agg_test_aggregation_{{ ds_nodash }}) tmp
+USING (SELECT key_column, test_src_column FROM tmp_schema.test_dag_agg_test_aggregation_{{ ds_nodash }}) tmp
 ON tbl.key_column=tmp.key_column
 WHEN MATCHED THEN
 UPDATE SET
@@ -133,10 +135,10 @@ VALUES (tmp.key_column, tmp.test_src_column)
 
     def test_merge_operator_with_parameterized_context(self):
         self.conf.parameterize_context()
-        op = self.build_dags().get_operator('merge_test_aggregation')
+        op = self.build_dags().get_operator('merge_test_aggregation_test_table', 'item')
         expected = """
 MERGE INTO test_schema.test_table tbl
-USING (SELECT key_column, item_column, test_src_column FROM test_schema_tmp.test_table_agg_test_aggregation_{{ ds_nodash }}) tmp
+USING (SELECT key_column, item_column, test_src_column FROM tmp_schema.test_dag_item_agg_test_aggregation_{{ ds_nodash }}) tmp
 ON tbl.key_column=tmp.key_column AND tbl.item_column=tmp.item_column
 WHEN MATCHED THEN
 UPDATE SET
@@ -150,10 +152,10 @@ VALUES (tmp.key_column, tmp.item_column, tmp.test_src_column)
 
     def test_merge_operator_with_parameterized_contextand_aggregation(self):
         self.conf.parameterize_context().parameterize_aggregation()
-        op = self.build_dags().get_operator('merge_test_aggregation_g9i')
+        op = self.build_dags().get_operator('merge_test_aggregation_test_table', 'item')
         expected = """
 MERGE INTO test_schema.test_table tbl
-USING (SELECT key_column, item_column, test_src_column FROM test_schema_tmp.test_table_agg_test_aggregation_g9i_{{ ds_nodash }}) tmp
+USING (SELECT key_column, item_column, test_src_column FROM tmp_schema.test_dag_item_agg_test_aggregation_{{ ds_nodash }}) tmp
 ON tbl.key_column=tmp.key_column AND tbl.item_column=tmp.item_column
 WHEN MATCHED THEN
 UPDATE SET
@@ -167,29 +169,57 @@ VALUES (tmp.key_column, tmp.item_column, tmp.test_src_column)
 
     def test_cleanup_operator_without_parameterization(self):
         op = self.build_dags().get_operator('cleanup_test_aggregation')
-        expected = "DROP TABLE IF EXISTS test_schema_tmp.test_table_agg_test_aggregation_{{ ds_nodash }}"
+        expected = "DROP TABLE IF EXISTS tmp_schema.test_dag_agg_test_aggregation_{{ ds_nodash }}"
         assert_str_equal(expected, op.sql)
 
     def test_cleanup_operator_with_parameterized_context(self):
         self.conf.parameterize_context()
-        op = self.build_dags().get_operator('cleanup_test_aggregation')
-        expected = "DROP TABLE IF EXISTS test_schema_tmp.test_table_agg_test_aggregation_{{ ds_nodash }}"
+        op = self.build_dags().get_operator('cleanup_test_aggregation', 'item')
+        expected = "DROP TABLE IF EXISTS tmp_schema.test_dag_item_agg_test_aggregation_{{ ds_nodash }}"
         assert_str_equal(expected, op.sql)
 
     def test_cleanup_operator_with_parameterized_context_and_aggregation(self):
         self.conf.parameterize_context().parameterize_aggregation()
-        op = self.build_dags().get_operator('cleanup_test_aggregation_g9i')
-        expected = "DROP TABLE IF EXISTS test_schema_tmp.test_table_agg_test_aggregation_g9i_{{ ds_nodash }}"
+        op = self.build_dags().get_operator('cleanup_test_aggregation', 'item')
+        expected = "DROP TABLE IF EXISTS tmp_schema.test_dag_item_agg_test_aggregation_{{ ds_nodash }}"
         assert_str_equal(expected, op.sql)
 
-    def test_init_operator_without_timeseries(self):
-        op = self.build_dags().get_operator('init')
+    def test_prepare_operator_without_timeseries(self):
+        op = self.build_dags().get_operator('prepare_test_aggregation_test_table')
         assert_equal(isinstance(op, DummyOperator), True)
 
-    def test_init_op_w_timeseries(self):
+    def test_prepare_operator_with_timeseries(self):
         self.conf.with_timeseries()
-        op = self.build_dags().get_operator('init')
-        expected = "DELETE FROM test_schema.test_table WHERE timeseries_column = '{{ ds }}'"
+        op = self.build_dags().get_operator('prepare_test_aggregation_test_table')
+        expected = "UPDATE test_schema.test_table SET test_column = NULL WHERE timeseries_column = '{{ ds }}'"
+        assert_str_equal(expected, op.sql)
+
+    def test_prepare_operator_with_timeseries_and_parameterized_context(self):
+        self.conf.with_timeseries().parameterize_context()
+        op = self.build_dags().get_operator('prepare_test_aggregation_test_table', 'item')
+        expected = "UPDATE test_schema.test_table SET test_column = NULL WHERE timeseries_column = '{{ ds }}' AND item_column = 'item'"
+        assert_str_equal(expected, op.sql)
+
+    def test_prepare_operator_with_timeseries_and_parameterized_context_and_aggregation(self):
+        self.conf.with_timeseries().parameterize_context().parameterize_aggregation()
+        op = self.build_dags().get_operator('prepare_test_aggregation_test_table', 'item')
+        expected = "UPDATE test_schema.test_table SET test_column = NULL WHERE timeseries_column = '{{ ds }}' AND item_column = 'item'"
+        assert_str_equal(expected, op.sql)
+
+    def test_purge_operator_without_timeseries(self):
+        op = self.build_dags().get_operator('purge_test_table')
+        assert_equal(isinstance(op, DummyOperator), True)
+
+    def test_purge_operator_with_timeseries(self):
+        self.conf.with_timeseries()
+        op = self.build_dags().get_operator('purge_test_table')
+        expected = "DELETE FROM test_schema.test_table WHERE timeseries_column = '{{ ds }}' AND test_column = NULL"
+        assert_str_equal(expected, op.sql)
+
+    def test_purge_operator_with_timeseries_and_parameterized_context(self):
+        self.conf.with_timeseries().parameterize_context()
+        op = self.build_dags().get_operator('purge_test_table', 'item')
+        expected = "DELETE FROM test_schema.test_table WHERE timeseries_column = '{{ ds }}' AND item_column = 'item' AND test_column = NULL"
         assert_str_equal(expected, op.sql)
 
 
