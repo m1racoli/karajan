@@ -53,6 +53,7 @@ daily_user_activities:
 | ---- | -------- | ------- | ------- |
 | query | required | aggregation query |
 | dependencies | optional | a list of dependencies |
+| offset | optional | date offset (>= 0) to run the aggregation for |
 
 #### aggregations.yml
 ```yaml

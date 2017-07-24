@@ -19,6 +19,29 @@ class ConfigHelper(dict):
                                 'column_name': 'test_src_column',
                                 'update_type': 'REPLACE',
                             },
+                            'another_test_column': {
+                                'column_name': 'another_test_src_column',
+                                'update_type': 'MAX',
+                            },
+                        },
+                        'another_aggregation': {
+                            'another_aggregation_test_column': {
+                                'column_name': 'another_aggregation_test_src_column',
+                                'update_type': 'KEEP',
+                            }
+                        },
+                    },
+                },
+                'another_table': {
+                    'start_date': datetime.now(),
+                    'schema': 'another_test_schema',
+                    'key_columns': ['key_column'],
+                    'aggregated_columns': {
+                        'test_aggregation': {
+                            'test_column': {
+                                'column_name': 'another_table_test_src_column',
+                                'update_type': 'MIN',
+                            },
                         },
                     },
                 },
@@ -26,6 +49,9 @@ class ConfigHelper(dict):
             'aggregations': {
                 'test_aggregation': {
                     'query': 'SELECT * FROM DUAL',
+                },
+                'another_aggregation': {
+                    'query': 'SELECT everything FROM here',
                 },
             },
         }
@@ -70,4 +96,9 @@ class ConfigHelper(dict):
     def with_timeseries(self, target_id='test_table'):
         self['targets'][target_id]['timeseries_key'] = 'timeseries_column'
         self['targets'][target_id]['key_columns'].append('timeseries_column')
+        return self
+
+    def with_offset(self, offset=1, aggregation_id='test_aggregation'):
+        self['aggregations'][aggregation_id]['offset'] = offset
+        self['aggregations'][aggregation_id]['query'] = "SELECT * FROM DUAL WHERE dt = '{{ ds }}'"
         return self

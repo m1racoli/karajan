@@ -28,7 +28,23 @@ class Config(object):
     template_ignore_mapping = {k: '{{ %s }}' % k for k in template_ignore_keywords}
 
     @classmethod
-    def render(cls, conf, params):
+    def render(cls, conf, params, replace=None):
+        """
+
+        :param conf: the conf object to apply jinja2 templating
+        :type conf: dict, list, str, unicode
+        :param params: the params to use in the rendering. ignored keys will be overwritten
+        :type params: dict
+        :param replace: instead if rendering, replace {{ k }} with {{ v }} for each k,v in replace.
+        will be applied on params and ignored keywords
+        :type replace: dict
+        :return:
+        """
+        if replace is None:
+            replace = {}
+        else:
+            replace = {k: '{{ %s }}' % v for k, v in replace.iteritems()}
+
         if isinstance(conf, dict):
             return {k: cls.render(v, params) for k, v in conf.iteritems()}
         elif isinstance(conf, list):
@@ -37,5 +53,6 @@ class Config(object):
             render_params = dict()
             render_params.update(params)
             render_params.update(cls.template_ignore_mapping)
+            render_params.update(replace)
             return Template(conf).render(**render_params)
         return conf

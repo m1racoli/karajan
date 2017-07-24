@@ -19,8 +19,6 @@ class BaseEngine(object):
             return self.nothing_dependency_operator(task_id, dag)
         elif isinstance(dep, TaskDependency):
             return self.task_dependency_operator(task_id, dag, dep)
-        elif isinstance(dep, TargetDependency):
-            return dep
         else:
             raise StandardError("Dependency operator for %s not found" % type(dep))
 
@@ -116,7 +114,10 @@ class ExasolEngine(BaseEngine):
         )
 
     def aggregation_operator(self, dag, src_column_names, agg, params, item):
-        select = Config.render(agg.query, params)
+        if agg.offset:
+            select = Config.render(agg.query, params, {'ds': 'macros.ds_add(ds, -%i)' % agg.offset})
+        else:
+            select = Config.render(agg.query, params)
         if not item:
             # nothing parameterized
             where = ''
@@ -147,12 +148,14 @@ class ExasolEngine(BaseEngine):
         if not target.is_timeseries():
             return self._dummy_operator(self._prepare_operator_id(agg, target), dag)
         set_cols = ', '.join("%s = NULL" % c for c in target.aggregated_columns(agg.name))
+        date = '{{ macros.ds_add(ds, -%i) }}' % agg.offset if agg.offset else '{{ ds }}'
         where_item=' AND %s = %s' % (agg.context.item_column, self.db_str(item)) if item else ''
-        sql = "UPDATE {target_table} SET {set_cols} WHERE {timeseries_col} = '{{{{ ds }}}}'{where_item}".format(
+        sql = "UPDATE {target_table} SET {set_cols} WHERE {timeseries_col} = '{date}'{where_item}".format(
             target_table=target.table(),
             set_cols=set_cols,
             timeseries_col=target.timeseries_key,
             where_item=where_item,
+            date=date,
         )
         return JdbcOperator(
             task_id=self._prepare_operator_id(agg, target),
@@ -229,25 +232,26 @@ VALUES ({in_vals})
             **self.task_attributes
         )
 
-    def purge_operator(self, dag, target, item):
-        if not target.is_timeseries():
-            return self._dummy_operator(self._purge_operator_id(target), dag)
-        where_item = ' AND %s = %s' % (target.context.item_column, self.db_str(item)) if item else ''
-        where_agg_col = ' AND '.join("%s = NULL" % c for c in target.aggregated_columns())
-        sql="DELETE FROM {target_table} WHERE {timeseries_key} = '{{{{ ds }}}}'{where_item} AND {where_agg_col}".format(
-            target_table=target.table(),
-            timeseries_key=target.timeseries_key,
-            where_item=where_item,
-            where_agg_col=where_agg_col,
-        )
-        return JdbcOperator(
-            task_id=self._purge_operator_id(target),
-            dag=dag,
-            sql=sql,
-            jdbc_conn_id=self.conn_id,
-            autocommit=self.autocommit,
-            **self.task_attributes
-        )
+    # TODO the purge logic needs to be refined. we\'ll do nothing for now due to the rare use case
+    # def purge_operator(self, dag, target, item):
+    #     if not target.is_timeseries():
+    #         return self._dummy_operator(self._purge_operator_id(target), dag)
+    #     where_item = ' AND %s = %s' % (target.context.item_column, self.db_str(item)) if item else ''
+    #     where_agg_col = ' AND '.join("%s = NULL" % c for c in target.aggregated_columns())
+    #     sql="DELETE FROM {target_table} WHERE {timeseries_key} = '{{{{ ds }}}}'{where_item} AND {where_agg_col}".format(
+    #         target_table=target.table(),
+    #         timeseries_key=target.timeseries_key,
+    #         where_item=where_item,
+    #         where_agg_col=where_agg_col,
+    #     )
+    #     return JdbcOperator(
+    #         task_id=self._purge_operator_id(target),
+    #         dag=dag,
+    #         sql=sql,
+    #         jdbc_conn_id=self.conn_id,
+    #         autocommit=self.autocommit,
+    #         **self.task_attributes
+    #     )
 
     @staticmethod
     def db_str(val):
