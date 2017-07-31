@@ -23,8 +23,8 @@ class TestExasolEngine(TestCase):
         Conductor(self.conf).build('test_dag', engine=self.engine, output=self.dags)
         return self
 
-    def get_operator(self, task_id, subdag=None, dag_id='test_dag'):
-        dag = self.dags[dag_id].get_task(subdag).subdag if subdag else self.dags[dag_id]
+    def get_operator(self, task_id, post_fix=None, dag_id='test_dag'):
+        dag = self.dags["%s_%s" % (dag_id, post_fix)] if post_fix else self.dags[dag_id]
         try:
             return dag.get_task(task_id)
         except AirflowException as e:
@@ -44,13 +44,13 @@ class TestExasolEngine(TestCase):
 
     def test_aggregation_operator_with_parameterized_context(self):
         self.conf.parameterize_context()
-        op = self.build_dags().get_operator('aggregate_test_aggregation', subdag='item')
+        op = self.build_dags().get_operator('aggregate_test_aggregation', 'item')
         expected = "CREATE TABLE tmp_schema.test_dag_item_agg_test_aggregation_{{ ds_nodash }} AS\nSELECT\nanother_table_test_src_column, test_src_column, key_column, item_column, another_test_src_column FROM (SELECT * FROM DUAL) sub WHERE item_column = 'item'"
         assert_str_equal(expected, op.sql)
 
     def test_aggregation_operator_with_parameterized_context_and_aggregation(self):
         self.conf.parameterize_context().parameterize_aggregation()
-        op = self.build_dags().get_operator('aggregate_test_aggregation', subdag='item')
+        op = self.build_dags().get_operator('aggregate_test_aggregation', 'item')
         expected = "CREATE TABLE tmp_schema.test_dag_item_agg_test_aggregation_{{ ds_nodash }} AS\nSELECT\nanother_table_test_src_column, test_src_column, key_column, 'item' as item_column, another_test_src_column FROM (SELECT * FROM item) sub "
         assert_str_equal(expected, op.sql)
 

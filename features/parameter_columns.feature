@@ -25,10 +25,10 @@ Feature: Parameter columns
       | family      |
     And the target test has the items of the context
     When I build the DAGs
-    Then in the DAG test.g9 fill_parameter_columns_test should depend on purge_test
-    And in the DAG test.pl fill_parameter_columns_test should depend on purge_test
-    And in the DAG test.g9 done should depend on fill_parameter_columns_test
-    And in the DAG test.pl done should depend on fill_parameter_columns_test
+    Then in the DAG test_g9 fill_parameter_columns_test should depend on purge_test
+    And in the DAG test_pl fill_parameter_columns_test should depend on purge_test
+    And in the DAG test_g9 done should depend on fill_parameter_columns_test
+    And in the DAG test_pl done should depend on fill_parameter_columns_test
 
   Scenario: Parameterized context and aggregation
     Given the context has the following items
@@ -41,7 +41,7 @@ Feature: Parameter columns
     And the target test has the items of the context
     And the aggregation test is parameterized
     When I build the DAGs
-    Then in the DAG test.g9 fill_parameter_columns_test should depend on purge_test
-    And in the DAG test.pl fill_parameter_columns_test should depend on purge_test
-    And in the DAG test.g9 done should depend on fill_parameter_columns_test
-    And in the DAG test.pl done should depend on fill_parameter_columns_test
+    Then in the DAG test_g9 fill_parameter_columns_test should depend on purge_test
+    And in the DAG test_pl fill_parameter_columns_test should depend on purge_test
+    And in the DAG test_g9 done should depend on fill_parameter_columns_test
+    And in the DAG test_pl done should depend on fill_parameter_columns_test
