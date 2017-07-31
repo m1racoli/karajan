@@ -23,41 +23,23 @@ class Conductor(object):
         if not self.targets:
             return {}
 
-        dag = DAG(dag_id=dag_id, start_date=min(t.start_date for t in self.targets.values()))
-
-        DummyOperator(task_id='init', dag=dag)
-        DummyOperator(task_id='done', dag=dag)
+        dags = {}
 
         for item, params in self.context.params().iteritems():
+            item_dag_id = "%s_%s" % (dag_id, item) if item else dag_id
+            item_start_date = min(t.start_date for t in self.targets.values() if t.has_item(item))
+            dag = DAG(dag_id=item_dag_id, start_date=item_start_date)
             self._build_subdag(item, params, engine, dag)
-
-        dags = {dag_id: dag}
-
-        if self.context.is_parameterized() and import_subdags:
-            for t in dag.tasks:
-                if isinstance(t, SubDagOperator):
-                    d = t.subdag
-                    dags[d.dag_id] = d
+            dags[item_dag_id] = dag
 
         if output is not None:
             output.update(dags)
 
         return dags
 
-    def _build_subdag(self, item, params, engine, parent_dag):
-        if item:
-            # parametrization, so we use sub dags per item
-            dag = DAG(dag_id="%s.%s" % (parent_dag.dag_id, item), start_date=parent_dag.start_date)
-            subdag_op = SubDagOperator(task_id=item, subdag=dag, dag=parent_dag)
-            subdag_op.set_upstream(parent_dag.get_task('init'))
-            subdag_op.set_downstream(parent_dag.get_task('done'))
-            init = DummyOperator(task_id='init', dag=dag)
-            done = DummyOperator(task_id='done', dag=dag)
-        else:
-            # no parametrization, so we use the main dag
-            dag = parent_dag
-            init = dag.get_task('init')
-            done = dag.get_task('done')
+    def _build_subdag(self, item, params, engine, dag):
+        init = DummyOperator(task_id='init', dag=dag)
+        done = DummyOperator(task_id='done', dag=dag)
 
         targets = [t for t in self.targets.values() if t.has_item(item)]
         aggregations = [self.aggregations[a] for a in {a for t in targets for a in t.aggregations}]
