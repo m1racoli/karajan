@@ -1,4 +1,4 @@
-import airflow.configuration
+from airflow import configuration as airflow_conf
 import yaml
 from os import path
 from jinja2 import Template
@@ -15,7 +15,7 @@ class Config(object):
             return conf
 
         if not path.isabs(conf):
-            dags_path = airflow.configuration.get_dags_folder()
+            dags_path = path.expanduser(airflow_conf.get('core', 'DAGS_FOLDER'))
             conf = path.join(dags_path, conf)
 
         return {
