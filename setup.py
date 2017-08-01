@@ -11,7 +11,7 @@ setup(
     description='A conductor of aggregations in Apache Airflow',
     install_requires=[
         "pyyaml",
-        "airflow[jdbc]>=1.7.1.3, <1.8.0",
+        "apache-airflow[jdbc]~=1.8",
     ],
     extras_require={
         'dev': [
