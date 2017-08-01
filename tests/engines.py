@@ -42,6 +42,12 @@ class TestExasolEngine(TestCase):
         expected = "CREATE TABLE tmp_schema.test_dag_agg_test_aggregation_{{ ds_nodash }} AS\nSELECT\ntimeseries_column, another_table_test_src_column, test_src_column, key_column, another_test_src_column FROM (SELECT * FROM DUAL) sub "
         assert_str_equal(expected, op.sql)
 
+    def test_aggregation_operator_with_other_timeseries(self):
+        self.conf.with_timeseries(target_id='another_table')
+        op = self.build_dags().get_operator('aggregate_another_aggregation')
+        expected = "CREATE TABLE tmp_schema.test_dag_agg_another_aggregation_{{ ds_nodash }} AS\nSELECT\nanother_aggregation_test_src_column, key_column FROM (SELECT everything FROM here) sub "
+        assert_str_equal(expected, op.sql)
+
     def test_aggregation_operator_with_parameterized_context(self):
         self.conf.parameterize_context()
         op = self.build_dags().get_operator('aggregate_test_aggregation', 'item')
