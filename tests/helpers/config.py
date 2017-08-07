@@ -101,3 +101,7 @@ class ConfigHelper(dict):
     def with_offset(self, offset=1, aggregation_id='test_aggregation'):
         self['aggregations'][aggregation_id]['offset'] = offset
         return self
+
+    def with_reruns(self, reruns=3, aggregation_id='test_aggregation'):
+        self['aggregations'][aggregation_id]['reruns'] = reruns
+        return self
