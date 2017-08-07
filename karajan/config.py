@@ -24,8 +24,9 @@ class Config(object):
             'context': Config.__load(path.join(conf, 'context.yml')),
         }
 
-    template_ignore_keywords = ['ds']
-    template_ignore_mapping = {k: '{{ %s }}' % k for k in template_ignore_keywords}
+    # currently we dont have airflow keywords we want to ingore. will if we have use for it later
+    # template_ignore_keywords = ['ds']
+    # template_ignore_mapping = {k: '{{ %s }}' % k for k in template_ignore_keywords}
 
     @classmethod
     def render(cls, conf, params, replace=None):
@@ -52,7 +53,7 @@ class Config(object):
         elif isinstance(conf, (str, unicode)):
             render_params = dict()
             render_params.update(params)
-            render_params.update(cls.template_ignore_mapping)
+            # render_params.update(cls.template_ignore_mapping)
             render_params.update(replace)
             return Template(conf).render(**render_params)
         return conf
