@@ -114,11 +114,9 @@ class ExasolEngine(BaseEngine):
         )
 
     def aggregation_operator(self, dag, src_column_names, agg, params, item):
-        if agg.offset:
-            ds_offset = 'macros.ds_add(ds, -%i)' % agg.offset
-            select = Config.render(agg.query, params, {'start_date': ds_offset, 'end_date': ds_offset})
-        else:
-            select = Config.render(agg.query, params, {'start_date': 'ds', 'end_date': 'ds'})
+        ds_start = 'ds' if (agg.reruns + agg.offset == 0) else 'macros.ds_add(ds, -%i)' % (agg.reruns + agg.offset)
+        ds_end = 'ds' if agg.offset == 0 else 'macros.ds_add(ds, -%i)' % agg.offset
+        select = Config.render(agg.query, params, {'start_date': ds_start, 'end_date': ds_end})
         if not item:
             # nothing parameterized
             where = ''
@@ -149,14 +147,16 @@ class ExasolEngine(BaseEngine):
         if not target.is_timeseries():
             return self._dummy_operator(self._prepare_operator_id(agg, target), dag)
         set_cols = ', '.join("%s = NULL" % c for c in target.aggregated_columns(agg.name))
-        date = '{{ macros.ds_add(ds, -%i) }}' % agg.offset if agg.offset else '{{ ds }}'
+        start_date = '{{ ds }}' if (agg.reruns + agg.offset == 0) else '{{ macros.ds_add(ds, -%i) }}' % (agg.reruns + agg.offset)
+        end_date = '{{ ds }}' if agg.offset == 0 else '{{ macros.ds_add(ds, -%i) }}' % agg.offset
         where_item=' AND %s = %s' % (agg.context.item_column, self.db_str(item)) if item else ''
-        sql = "UPDATE {target_table} SET {set_cols} WHERE {timeseries_col} = '{date}'{where_item}".format(
+        sql = "UPDATE {target_table} SET {set_cols} WHERE {timeseries_col} BETWEEN '{start_date}' AND '{end_date}'{where_item}".format(
             target_table=target.table(),
             set_cols=set_cols,
             timeseries_col=target.timeseries_key,
             where_item=where_item,
-            date=date,
+            start_date=start_date,
+            end_date=end_date,
         )
         return JdbcOperator(
             task_id=self._prepare_operator_id(agg, target),

@@ -54,6 +54,7 @@ daily_user_activities:
 | query | required | aggregation query |
 | dependencies | optional | a list of dependencies |
 | offset | optional | date offset (>= 0) to run the aggregation for |
+| reruns | optional | number of last dates (>= 0) to rerun |
 
 #### aggregations.yml
 ```yaml
