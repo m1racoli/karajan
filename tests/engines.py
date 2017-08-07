@@ -69,13 +69,13 @@ class TestExasolEngine(TestCase):
     def test_aggregation_operator_with_reruns(self):
         self.conf.with_reruns()
         op = self.build_dags().get_operator('aggregate_test_aggregation')
-        expected = "CREATE TABLE tmp_schema.test_dag_agg_test_aggregation_{{ ds_nodash }} AS\nSELECT\nanother_table_test_src_column, test_src_column, key_column, another_test_src_column FROM (SELECT * FROM DUAL WHERE dt BETWEEN '{{ ds }}' AND '{{ macros.ds_add(ds, -3) }}') sub"
+        expected = "CREATE TABLE tmp_schema.test_dag_agg_test_aggregation_{{ ds_nodash }} AS\nSELECT\nanother_table_test_src_column, test_src_column, key_column, another_test_src_column FROM (SELECT * FROM DUAL WHERE dt BETWEEN '{{ macros.ds_add(ds, -3) }}' AND '{{ ds }}') sub"
         assert_str_equal(expected, op.sql)
 
     def test_aggregation_operator_with_offset_and_reruns(self):
         self.conf.with_offset().with_reruns()
         op = self.build_dags().get_operator('aggregate_test_aggregation')
-        expected = "CREATE TABLE tmp_schema.test_dag_agg_test_aggregation_{{ ds_nodash }} AS\nSELECT\nanother_table_test_src_column, test_src_column, key_column, another_test_src_column FROM (SELECT * FROM DUAL WHERE dt BETWEEN '{{ macros.ds_add(ds, -1) }}' AND '{{ macros.ds_add(ds, -4) }}') sub"
+        expected = "CREATE TABLE tmp_schema.test_dag_agg_test_aggregation_{{ ds_nodash }} AS\nSELECT\nanother_table_test_src_column, test_src_column, key_column, another_test_src_column FROM (SELECT * FROM DUAL WHERE dt BETWEEN '{{ macros.ds_add(ds, -4) }}' AND '{{ macros.ds_add(ds, -1) }}') sub"
         assert_str_equal(expected, op.sql)
 
     def test_param_column_operator_with_item(self):
@@ -259,19 +259,19 @@ VALUES (tmp.key_column, tmp.item_column, tmp.test_src_column, tmp.another_test_s
     def test_prepare_operator_with_timeseries_and_offset(self):
         self.conf.with_timeseries().with_offset()
         op = self.build_dags().get_operator('prepare_test_aggregation_test_table')
-        expected = "UPDATE test_schema.test_table SET test_column = NULL, another_test_column = NULL WHERE timeseries_column BETWEEN '{{ ds }}' AND '{{ ds }}'"
+        expected = "UPDATE test_schema.test_table SET test_column = NULL, another_test_column = NULL WHERE timeseries_column BETWEEN '{{ macros.ds_add(ds, -1) }}' AND '{{ macros.ds_add(ds, -1) }}'"
         assert_str_equal(expected, op.sql)
 
     def test_prepare_operator_with_timeseries_and_reruns(self):
         self.conf.with_timeseries().with_reruns()
         op = self.build_dags().get_operator('prepare_test_aggregation_test_table')
-        expected = "UPDATE test_schema.test_table SET test_column = NULL, another_test_column = NULL WHERE timeseries_column BETWEEN '{{ ds }}' AND '{{ macros.ds_add(ds, -3) }}'"
+        expected = "UPDATE test_schema.test_table SET test_column = NULL, another_test_column = NULL WHERE timeseries_column BETWEEN '{{ macros.ds_add(ds, -3) }}' AND '{{ ds }}'"
         assert_str_equal(expected, op.sql)
 
     def test_prepare_operator_with_timeseries_and_offset_reruns(self):
         self.conf.with_timeseries().with_offset().with_reruns()
         op = self.build_dags().get_operator('prepare_test_aggregation_test_table')
-        expected = "UPDATE test_schema.test_table SET test_column = NULL, another_test_column = NULL WHERE timeseries_column BETWEEN '{{ macros.ds_add(ds, -1) }}' AND '{{ macros.ds_add(ds, -4) }}'"
+        expected = "UPDATE test_schema.test_table SET test_column = NULL, another_test_column = NULL WHERE timeseries_column BETWEEN '{{ macros.ds_add(ds, -4) }}' AND '{{ macros.ds_add(ds, -1) }}'"
         assert_str_equal(expected, op.sql)
 
     def test_purge_operator_without_timeseries(self):
