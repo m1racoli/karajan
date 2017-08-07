@@ -115,9 +115,10 @@ class ExasolEngine(BaseEngine):
 
     def aggregation_operator(self, dag, src_column_names, agg, params, item):
         if agg.offset:
-            select = Config.render(agg.query, params, {'ds': 'macros.ds_add(ds, -%i)' % agg.offset})
+            ds_offset = 'macros.ds_add(ds, -%i)' % agg.offset
+            select = Config.render(agg.query, params, {'start_date': ds_offset, 'end_date': ds_offset})
         else:
-            select = Config.render(agg.query, params)
+            select = Config.render(agg.query, params, {'start_date': 'ds', 'end_date': 'ds'})
         if not item:
             # nothing parameterized
             where = ''
