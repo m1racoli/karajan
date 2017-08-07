@@ -66,7 +66,7 @@ user_logins:
       COUNT(*) as logins
     FROM
       {{ game_key }}.APP_LOGINS
-    WHERE CREATED_DATE = '{{ ds }}'
+    WHERE CREATED_DATE BETWEEN '{{ start_date }}' AND '{{ end_date }}'
     GROUP BY 1,2
   dependencies:
     - type: tracking
