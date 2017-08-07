@@ -183,6 +183,7 @@ class Aggregation(ModelBase):
         self.query = conf.get('query', '')
         self.dependencies = conf.get('dependencies')
         self.offset = conf.get('offset', 0)
+        self.reruns = conf.get('reruns', 0)
         self.parameterize = self._check_parameterize()
         super(Aggregation, self).__init__(name)
 
