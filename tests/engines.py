@@ -33,13 +33,13 @@ class TestExasolEngine(TestCase):
 
     def test_aggregation_operator_without_parameterization(self):
         op = self.build_dags().get_operator('aggregate_test_aggregation')
-        expected = "CREATE TABLE tmp_schema.test_dag_agg_test_aggregation_{{ ds_nodash }} AS\nSELECT\nanother_table_test_src_column, test_src_column, key_column, another_test_src_column FROM (SELECT * FROM DUAL) sub "
+        expected = "CREATE TABLE tmp_schema.test_dag_agg_test_aggregation_{{ ds_nodash }} AS\nSELECT\nanother_table_test_src_column, test_src_column, key_column, another_test_src_column FROM (SELECT * FROM DUAL WHERE dt BETWEEN '{{ ds }}' AND '{{ ds }}') sub "
         assert_str_equal(expected, op.sql)
 
     def test_aggregation_operator_with_timeseries(self):
         self.conf.with_timeseries()
         op = self.build_dags().get_operator('aggregate_test_aggregation')
-        expected = "CREATE TABLE tmp_schema.test_dag_agg_test_aggregation_{{ ds_nodash }} AS\nSELECT\ntimeseries_column, another_table_test_src_column, test_src_column, key_column, another_test_src_column FROM (SELECT * FROM DUAL) sub "
+        expected = "CREATE TABLE tmp_schema.test_dag_agg_test_aggregation_{{ ds_nodash }} AS\nSELECT\ntimeseries_column, another_table_test_src_column, test_src_column, key_column, another_test_src_column FROM (SELECT * FROM DUAL WHERE dt BETWEEN '{{ ds }}' AND '{{ ds }}') sub "
         assert_str_equal(expected, op.sql)
 
     def test_aggregation_operator_with_other_timeseries(self):
@@ -51,7 +51,7 @@ class TestExasolEngine(TestCase):
     def test_aggregation_operator_with_parameterized_context(self):
         self.conf.parameterize_context()
         op = self.build_dags().get_operator('aggregate_test_aggregation', 'item')
-        expected = "CREATE TABLE tmp_schema.test_dag_item_agg_test_aggregation_{{ ds_nodash }} AS\nSELECT\nanother_table_test_src_column, test_src_column, key_column, item_column, another_test_src_column FROM (SELECT * FROM DUAL) sub WHERE item_column = 'item'"
+        expected = "CREATE TABLE tmp_schema.test_dag_item_agg_test_aggregation_{{ ds_nodash }} AS\nSELECT\nanother_table_test_src_column, test_src_column, key_column, item_column, another_test_src_column FROM (SELECT * FROM DUAL WHERE dt BETWEEN '{{ ds }}' AND '{{ ds }}') sub WHERE item_column = 'item'"
         assert_str_equal(expected, op.sql)
 
     def test_aggregation_operator_with_parameterized_context_and_aggregation(self):
@@ -63,7 +63,7 @@ class TestExasolEngine(TestCase):
     def test_aggregation_operator_with_offset(self):
         self.conf.with_offset()
         op = self.build_dags().get_operator('aggregate_test_aggregation')
-        expected = "CREATE TABLE tmp_schema.test_dag_agg_test_aggregation_{{ ds_nodash }} AS\nSELECT\nanother_table_test_src_column, test_src_column, key_column, another_test_src_column FROM (SELECT * FROM DUAL WHERE dt = '{{ macros.ds_add(ds, -1) }}') sub"
+        expected = "CREATE TABLE tmp_schema.test_dag_agg_test_aggregation_{{ ds_nodash }} AS\nSELECT\nanother_table_test_src_column, test_src_column, key_column, another_test_src_column FROM (SELECT * FROM DUAL WHERE dt BETWEEN '{{ macros.ds_add(ds, -1) }}' AND '{{ macros.ds_add(ds, -1) }}') sub"
         assert_str_equal(expected, op.sql)
 
     def test_param_column_operator_with_item(self):

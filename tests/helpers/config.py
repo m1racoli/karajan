@@ -48,7 +48,7 @@ class ConfigHelper(dict):
             },
             'aggregations': {
                 'test_aggregation': {
-                    'query': 'SELECT * FROM DUAL',
+                    'query': "SELECT * FROM DUAL WHERE dt BETWEEN '{{ start_date }}' AND '{{ end_date }}'",
                 },
                 'another_aggregation': {
                     'query': 'SELECT everything FROM here',
@@ -100,5 +100,4 @@ class ConfigHelper(dict):
 
     def with_offset(self, offset=1, aggregation_id='test_aggregation'):
         self['aggregations'][aggregation_id]['offset'] = offset
-        self['aggregations'][aggregation_id]['query'] = "SELECT * FROM DUAL WHERE dt = '{{ ds }}'"
         return self
