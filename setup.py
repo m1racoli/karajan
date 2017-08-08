@@ -21,6 +21,7 @@ setup(
             'rednose',
             'coverage',
             'parameterized',
+            'mock',
         ],
     },
 )

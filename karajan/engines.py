@@ -1,12 +1,14 @@
-from datetime import timedelta, date, datetime
+import logging
+from datetime import date
 
+from airflow.hooks.jdbc_hook import JdbcHook
 from airflow.operators.dummy_operator import DummyOperator
 from airflow.operators.jdbc_operator import JdbcOperator
 from airflow.operators.sensors import SqlSensor, TimeDeltaSensor, ExternalTaskSensor
 
-from karajan.config import Config
-from karajan.dependencies import DeltaDependency, TrackingDependency, NothingDependency, TaskDependency, TargetDependency
+from karajan.dependencies import *
 from karajan.model import AggregatedColumn
+from karajan.operators import *
 
 
 class BaseEngine(object):
@@ -45,13 +47,6 @@ class BaseEngine(object):
             dag=dag,
         )
 
-    def aggregation_operator(self, dag, target, agg, params, item):
-        return self._dummy_operator(self._aggregation_operator_id(agg), dag)
-
-    @staticmethod
-    def _aggregation_operator_id(agg):
-        return 'aggregate_%s' % agg.name
-
     def merge_operator(self, dag, table, agg, item):
         return self._dummy_operator(self._merge_operator_id(agg, table), dag)
 
@@ -85,15 +80,26 @@ class BaseEngine(object):
 
     @staticmethod
     def _prepare_operator_id(agg, target):
-        return 'prepare_%s_%s' % (agg.name,target.name)
+        return 'prepare_%s_%s' % (agg.name, target.name)
 
     @staticmethod
     def _dummy_operator(task_id, dag):
         return DummyOperator(task_id=task_id, dag=dag)
 
+    def aggregate(self, tmp_table_name, columns, query, where=None):
+        """
+
+        :type tmp_table_name: str
+        :type columns: list
+        :type query: str
+        :type where: dict
+        """
+        raise NotImplementedError()
+
 
 class ExasolEngine(BaseEngine):
-    def __init__(self, tmp_schema, conn_id=None, queue='default', retries=12, retry_delay=timedelta(seconds=300), autocommit=True):
+    def __init__(self, tmp_schema, conn_id=None, queue='default', retries=12, retry_delay=timedelta(seconds=300),
+                 autocommit=True):
         self.tmp_schema = tmp_schema
         self.conn_id = conn_id
         self.autocommit = autocommit
@@ -113,43 +119,14 @@ class ExasolEngine(BaseEngine):
             **self.task_attributes
         )
 
-    def aggregation_operator(self, dag, src_column_names, agg, params, item):
-        ds_start = 'ds' if (agg.reruns + agg.offset == 0) else 'macros.ds_add(ds, -%i)' % (agg.reruns + agg.offset)
-        ds_end = 'ds' if agg.offset == 0 else 'macros.ds_add(ds, -%i)' % agg.offset
-        select = Config.render(agg.query, params, {'start_date': ds_start, 'end_date': ds_end})
-        if not item:
-            # nothing parameterized
-            where = ''
-            columns = src_column_names
-            tmp_table = self._aggregation_table_name(dag, agg)
-        elif not agg.parameterize:
-            # parameterized context
-            where = "WHERE %s = %s" % (agg.context.item_column, self.db_str(item))
-            columns = src_column_names
-            tmp_table = self._aggregation_table_name(dag, agg)
-        else:
-            # parameterized context and aggregation
-            where = ''
-            columns = [n if n != agg.context.item_column else "%s as %s" % (self.db_str(item), agg.context.item_column) for n in src_column_names]
-            tmp_table = self._aggregation_table_name(dag, agg)
-        columns = ', '.join(columns)
-        sql = "CREATE TABLE {tmp_table} AS\nSELECT\n{columns} FROM ({select}) sub {where}"
-        return JdbcOperator(
-            task_id=self._aggregation_operator_id(agg),
-            jdbc_conn_id=self.conn_id,
-            dag=dag,
-            sql=sql.format(tmp_table=tmp_table, columns=columns, select=select, where=where),
-            autocommit=self.autocommit,
-            **self.task_attributes
-        )
-
     def prepare_operator(self, dag, agg, target, item):
         if not target.is_timeseries():
             return self._dummy_operator(self._prepare_operator_id(agg, target), dag)
         set_cols = ', '.join("%s = NULL" % c for c in target.aggregated_columns(agg.name))
-        start_date = '{{ ds }}' if (agg.reruns + agg.offset == 0) else '{{ macros.ds_add(ds, -%i) }}' % (agg.reruns + agg.offset)
+        start_date = '{{ ds }}' if (agg.reruns + agg.offset == 0) else '{{ macros.ds_add(ds, -%i) }}' % (
+            agg.reruns + agg.offset)
         end_date = '{{ ds }}' if agg.offset == 0 else '{{ macros.ds_add(ds, -%i) }}' % agg.offset
-        where_item=' AND %s = %s' % (agg.context.item_column, self.db_str(item)) if item else ''
+        where_item = ' AND %s = %s' % (agg.context.item_column, self.db_str(item)) if item else ''
         sql = "UPDATE {target_table} SET {set_cols} WHERE {timeseries_col} BETWEEN '{start_date}' AND '{end_date}'{where_item}".format(
             target_table=target.table(),
             set_cols=set_cols,
@@ -254,12 +231,7 @@ VALUES ({in_vals})
     #         **self.task_attributes
     #     )
 
-    @staticmethod
-    def db_str(val):
-        if isinstance(val, (str, unicode, date, datetime)):
-            return "'%s'" % val
-        else:
-            return val
+
 
     def param_column_op(self, dag, target, params, item):
         sql = []
@@ -285,3 +257,33 @@ VALUES ({in_vals})
 
     def _aggregation_table_name(self, dag, agg):
         return '%s.%s_agg_%s_{{ ds_nodash }}' % (self.tmp_schema, dag.dag_id.replace('.', '_'), agg.name)
+
+    # new operator design
+
+    def aggregate(self, tmp_table_name, columns, query, where=None):
+        sql = "CREATE TABLE {schema}.{table} AS SELECT {columns} FROM ({query}) sub {where}".format(
+            schema=self.tmp_schema,
+            table=tmp_table_name,
+            columns=columns,
+            query=query,
+            where=self._where(where),
+        )
+        self._execute(sql)
+
+    @staticmethod
+    def db_str(val):
+        if isinstance(val, (str, unicode, date, datetime)):
+            return "'%s'" % val
+        else:
+            return val
+
+    @staticmethod
+    def _where(d):
+        if not d:
+            return ''
+        return "WHERE %s" % (' AND '.join(["%s = %s" % (c, ExasolEngine.db_str(v)) for c, v in d.iteritems()]))
+
+    def _execute(self, sql):
+        logging.info('Executing: ' + str(sql))
+        self.hook = JdbcHook(jdbc_conn_id=self.conn_id)
+        self.hook.run(sql, self.autocommit)

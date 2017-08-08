@@ -71,7 +71,7 @@ class ConfigHelper(dict):
         return self
 
     def parameterize_aggregation(self, aggregation_id='test_aggregation'):
-        self['aggregations'][aggregation_id]['query'] = 'SELECT * FROM {{ item }}'
+        self['aggregations'][aggregation_id]['query'] = "SELECT * FROM {{ item }} WHERE dt BETWEEN '{{ start_date }}' AND '{{ end_date }}'"
         return self
 
     def with_parameter_columns(self):
