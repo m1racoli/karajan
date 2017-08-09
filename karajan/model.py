@@ -29,9 +29,11 @@ class Context(ModelBase):
             self.validate_presence('item_column')
             for k, v in self.items.iteritems():
                 validate_exclude(v, 'item')
+                validate_exclude(v, 'item_column')
         else:
             self.validate_absence('item_column')
         self.validate_exclude('defaults', 'item')
+        self.validate_exclude('defaults', 'item_column')
         super(Context, self).validate()
 
     def is_parameterized(self):
@@ -54,6 +56,7 @@ class Context(ModelBase):
                 params.update(self.defaults)
                 params.update(self.items[item])
                 params['item'] = item
+                params['item_column'] = self.item_column
                 return params
 
             return {k: make_params(k) for k in (target.items if target else self.items)}

@@ -6,6 +6,7 @@ from karajan.config import Config
 from karajan.engines import BaseEngine
 from karajan.model import Target, Aggregation, Context
 from karajan.dependencies import NothingDependency, get_dependency, TargetDependency
+from karajan.operators import KarajanAggregateOperator
 
 
 class Conductor(object):
@@ -59,8 +60,14 @@ class Conductor(object):
                 param_col_op.set_downstream(done)
 
         for aggregation in aggregations:
-            src_column_names = {c for t in targets for c in t.src_column_names(aggregation.name)}
-            aggregation_operator = engine.aggregation_operator(dag, src_column_names, aggregation, params, item)
+            src_column_names = list({c for t in targets for c in t.src_column_names(aggregation.name)})
+            aggregation_operator = KarajanAggregateOperator(
+                engine=engine,
+                aggregation=aggregation,
+                columns=src_column_names,
+                params=params,
+                dag=dag
+            )
             aggregation_operators[aggregation.name] = aggregation_operator
             for dependency in self._get_dependencies(aggregation, params):
                 if isinstance(dependency, TargetDependency):

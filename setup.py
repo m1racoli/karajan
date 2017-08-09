@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='karajan',
-    version='0.2.1',
+    version='0.2.2',
     url='https://github.com/wooga/bit.karajan',
     license='',
     packages=['karajan'],
@@ -21,6 +21,7 @@ setup(
             'rednose',
             'coverage',
             'parameterized',
+            'mock',
         ],
     },
 )

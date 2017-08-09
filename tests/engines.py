@@ -1,21 +1,28 @@
-from datetime import datetime, date, timedelta
 from unittest import TestCase
 
 from airflow.exceptions import AirflowException
-from airflow.operators.dummy_operator import DummyOperator
-from airflow.operators.sensors import SqlSensor, TimeDeltaSensor, ExternalTaskSensor
-
+from mock.mock import MagicMock
 from nose.tools import assert_equal
+from parameterized.parameterized import parameterized
 
 from karajan.conductor import Conductor
-from karajan.dependencies import TrackingDependency, DeltaDependency, NothingDependency, TaskDependency
-from karajan.engines import ExasolEngine
+from karajan.engines import *
+from tests.helpers.assertions import assert_str_equal
 from tests.helpers.config import ConfigHelper
+
+
+class TestBaseEngine(TestCase):
+    def setUp(self):
+        self.engine = BaseEngine()
+
+    def test_aggregate(self):
+        self.assertRaises(NotImplementedError, self.engine.aggregate, 1, 2, 3)
 
 
 class TestExasolEngine(TestCase):
     def setUp(self):
         self.engine = ExasolEngine('tmp_schema')
+        self.engine._execute = MagicMock()
         self.conf = ConfigHelper()
         self.dags = {}
 
@@ -31,52 +38,12 @@ class TestExasolEngine(TestCase):
             print('%s found in %s' % (dag.task_ids, dag))
             raise e
 
-    def test_aggregation_operator_without_parameterization(self):
-        op = self.build_dags().get_operator('aggregate_test_aggregation')
-        expected = "CREATE TABLE tmp_schema.test_dag_agg_test_aggregation_{{ ds_nodash }} AS\nSELECT\nanother_table_test_src_column, test_src_column, key_column, another_test_src_column FROM (SELECT * FROM DUAL WHERE dt BETWEEN '{{ ds }}' AND '{{ ds }}') sub "
-        assert_str_equal(expected, op.sql)
-
-    def test_aggregation_operator_with_timeseries(self):
-        self.conf.with_timeseries()
-        op = self.build_dags().get_operator('aggregate_test_aggregation')
-        expected = "CREATE TABLE tmp_schema.test_dag_agg_test_aggregation_{{ ds_nodash }} AS\nSELECT\ntimeseries_column, another_table_test_src_column, test_src_column, key_column, another_test_src_column FROM (SELECT * FROM DUAL WHERE dt BETWEEN '{{ ds }}' AND '{{ ds }}') sub "
-        assert_str_equal(expected, op.sql)
-
-    def test_aggregation_operator_with_other_timeseries(self):
-        self.conf.with_timeseries(target_id='another_table')
-        op = self.build_dags().get_operator('aggregate_another_aggregation')
-        expected = "CREATE TABLE tmp_schema.test_dag_agg_another_aggregation_{{ ds_nodash }} AS\nSELECT\nanother_aggregation_test_src_column, key_column FROM (SELECT everything FROM here) sub "
-        assert_str_equal(expected, op.sql)
-
-    def test_aggregation_operator_with_parameterized_context(self):
-        self.conf.parameterize_context()
-        op = self.build_dags().get_operator('aggregate_test_aggregation', 'item')
-        expected = "CREATE TABLE tmp_schema.test_dag_item_agg_test_aggregation_{{ ds_nodash }} AS\nSELECT\nanother_table_test_src_column, test_src_column, key_column, item_column, another_test_src_column FROM (SELECT * FROM DUAL WHERE dt BETWEEN '{{ ds }}' AND '{{ ds }}') sub WHERE item_column = 'item'"
-        assert_str_equal(expected, op.sql)
-
-    def test_aggregation_operator_with_parameterized_context_and_aggregation(self):
-        self.conf.parameterize_context().parameterize_aggregation()
-        op = self.build_dags().get_operator('aggregate_test_aggregation', 'item')
-        expected = "CREATE TABLE tmp_schema.test_dag_item_agg_test_aggregation_{{ ds_nodash }} AS\nSELECT\nanother_table_test_src_column, test_src_column, key_column, 'item' as item_column, another_test_src_column FROM (SELECT * FROM item) sub "
-        assert_str_equal(expected, op.sql)
-
-    def test_aggregation_operator_with_offset(self):
-        self.conf.with_offset()
-        op = self.build_dags().get_operator('aggregate_test_aggregation')
-        expected = "CREATE TABLE tmp_schema.test_dag_agg_test_aggregation_{{ ds_nodash }} AS\nSELECT\nanother_table_test_src_column, test_src_column, key_column, another_test_src_column FROM (SELECT * FROM DUAL WHERE dt BETWEEN '{{ macros.ds_add(ds, -1) }}' AND '{{ macros.ds_add(ds, -1) }}') sub"
-        assert_str_equal(expected, op.sql)
-
-    def test_aggregation_operator_with_reruns(self):
-        self.conf.with_reruns()
-        op = self.build_dags().get_operator('aggregate_test_aggregation')
-        expected = "CREATE TABLE tmp_schema.test_dag_agg_test_aggregation_{{ ds_nodash }} AS\nSELECT\nanother_table_test_src_column, test_src_column, key_column, another_test_src_column FROM (SELECT * FROM DUAL WHERE dt BETWEEN '{{ macros.ds_add(ds, -3) }}' AND '{{ ds }}') sub"
-        assert_str_equal(expected, op.sql)
-
-    def test_aggregation_operator_with_offset_and_reruns(self):
-        self.conf.with_offset().with_reruns()
-        op = self.build_dags().get_operator('aggregate_test_aggregation')
-        expected = "CREATE TABLE tmp_schema.test_dag_agg_test_aggregation_{{ ds_nodash }} AS\nSELECT\nanother_table_test_src_column, test_src_column, key_column, another_test_src_column FROM (SELECT * FROM DUAL WHERE dt BETWEEN '{{ macros.ds_add(ds, -4) }}' AND '{{ macros.ds_add(ds, -1) }}') sub"
-        assert_str_equal(expected, op.sql)
+    @parameterized.expand([
+        ('wo_where', None, ''),
+        ('w_where', {'item_column': 'item'}, "WHERE item_column = 'item'")])
+    def test_aggregate(self, txt, where, sql):
+        self.engine.aggregate('tmp_table', ['one_column'], "SELECT nothing", where)
+        self.engine._execute.assert_called_with("CREATE TABLE tmp_schema.tmp_table AS SELECT ['one_column'] FROM (SELECT nothing) sub %s" % sql)
 
     def test_param_column_operator_with_item(self):
         self.conf.parameterize_context().with_parameter_columns()
@@ -298,14 +265,3 @@ VALUES (tmp.key_column, tmp.item_column, tmp.test_src_column, tmp.another_test_s
         # expected = "DELETE FROM test_schema.test_table WHERE timeseries_column = '{{ macros.ds_add(ds, -1) }}' AND test_column = NULL"
         # assert_str_equal(expected, op.sql)
         assert_equal(isinstance(op, DummyOperator), True)
-
-
-# TODO sql equal check
-def assert_str_equal(actual, expected, strip=True):
-    actual = actual.split('\n')
-    expected = expected.split('\n')
-    for al, el in zip(actual, expected):
-        if strip:
-            al = al.strip()
-            el = el.strip()
-        assert_equal(al, el)
