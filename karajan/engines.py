@@ -54,13 +54,6 @@ class BaseEngine(object):
     def _merge_operator_id(agg, target):
         return 'merge_%s_%s' % (agg.name, target.name)
 
-    def cleanup_operator(self, dag, agg, item):
-        return self._dummy_operator(self._cleanup_operator_id(agg), dag)
-
-    @staticmethod
-    def _cleanup_operator_id(agg):
-        return 'cleanup_%s' % agg.name
-
     def purge_operator(self, dag, target, item):
         return self._dummy_operator(self._purge_operator_id(target), dag)
 
@@ -204,16 +197,6 @@ VALUES ({in_vals})
             sql=sql,
             autocommit=self.autocommit,
             depends_on_past=target.depends_on_past(agg.name),
-            **self.task_attributes
-        )
-
-    def cleanup_operator(self, dag, agg, item):
-        return JdbcOperator(
-            task_id=self._cleanup_operator_id(agg),
-            jdbc_conn_id=self.conn_id,
-            dag=dag,
-            sql='DROP TABLE IF EXISTS %s' % (self._aggregation_table_name(dag, agg)),
-            autocommit=self.autocommit,
             **self.task_attributes
         )
 
