@@ -7,7 +7,6 @@ from airflow.operators.jdbc_operator import JdbcOperator
 from airflow.operators.sensors import SqlSensor, TimeDeltaSensor, ExternalTaskSensor
 
 from karajan.dependencies import *
-from karajan.model import AggregatedColumn
 from karajan.operators import *
 
 

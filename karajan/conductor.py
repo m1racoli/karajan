@@ -4,9 +4,7 @@ from airflow.operators.dummy_operator import DummyOperator
 from karajan.dependencies import NothingDependency, get_dependency, TargetDependency
 from karajan.engines import BaseEngine
 from karajan.model import Target, Aggregation, Context
-from karajan.dependencies import NothingDependency, get_dependency, TargetDependency
 from karajan.operators import *
-
 
 
 class Conductor(object):

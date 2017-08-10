@@ -7,7 +7,6 @@ from parameterized.parameterized import parameterized
 
 from karajan.conductor import Conductor
 from karajan.engines import *
-from tests.helpers.assertions import assert_str_equal
 from tests.helpers.config import ConfigHelper
 
 

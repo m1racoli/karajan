@@ -1,8 +1,6 @@
 from unittest import TestCase
 
-from airflow.exceptions import AirflowException
 from mock import MagicMock
-from parameterized.parameterized import parameterized
 
 from karajan.conductor import Conductor
 from tests.helpers import defaults
