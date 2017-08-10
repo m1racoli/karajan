@@ -50,10 +50,6 @@ class TestExasolEngine(TestCase):
         self.engine.cleanup('some_tmp_table')
         self.engine._execute.assert_called_with("DROP TABLE IF EXISTS tmp_schema.some_tmp_table")
 
-    def test_cleanup_with_param(self):
-        self.conf.parameterize_context()
-        self.engine.cleanup('some_tmp_table')
-        self.engine._execute.assert_called_with("DROP TABLE IF EXISTS tmp_schema.some_tmp_table")
 
     def test_param_column_operator_with_item(self):
         self.conf.parameterize_context().with_parameter_columns()
