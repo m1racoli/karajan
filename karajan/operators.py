@@ -51,13 +51,15 @@ class KarajanAggregateOperator(KarajanBaseOperator):
                 where = {item_column: item}
 
         self.engine.aggregate(self.tmp_table_name(context), columns, query, where)
+
+
 class KarajanCleanOperator(KarajanBaseOperator):
     ui_color = '#4255ff'
 
-    def __init__(self, *args, **kwargs):
-        super(KarajanCleanOperator, self).__init__(*args, **kwargs)
+    def __init__(self, aggregation, *args, **kwargs):
+        self.aggregation = aggregation
+        task_id = "cleanup_%s" % aggregation.name
+        super(KarajanCleanOperator, self).__init__(*args, task_id=task_id, **kwargs)
 
     def execute(self, context):
         self.engine.clean(self.tmp_table_name(context))
-
-
