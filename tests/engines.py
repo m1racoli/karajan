@@ -184,23 +184,6 @@ VALUES (tmp.key_column, tmp.item_column, tmp.test_src_column, tmp.another_test_s
                 """
         assert_str_equal(expected, op.sql)
 
-    def test_cleanup_operator_without_parameterization(self):
-        op = self.build_dags().get_operator('cleanup_test_aggregation')
-        expected = "DROP TABLE IF EXISTS tmp_schema.test_dag_agg_test_aggregation_{{ ds_nodash }}"
-        assert_str_equal(expected, op.sql)
-
-    def test_cleanup_operator_with_parameterized_context(self):
-        self.conf.parameterize_context()
-        op = self.build_dags().get_operator('cleanup_test_aggregation', 'item')
-        expected = "DROP TABLE IF EXISTS tmp_schema.test_dag_item_agg_test_aggregation_{{ ds_nodash }}"
-        assert_str_equal(expected, op.sql)
-
-    def test_cleanup_operator_with_parameterized_context_and_aggregation(self):
-        self.conf.parameterize_context().parameterize_aggregation()
-        op = self.build_dags().get_operator('cleanup_test_aggregation', 'item')
-        expected = "DROP TABLE IF EXISTS tmp_schema.test_dag_item_agg_test_aggregation_{{ ds_nodash }}"
-        assert_str_equal(expected, op.sql)
-
     def test_prepare_operator_without_timeseries(self):
         op = self.build_dags().get_operator('prepare_test_aggregation_test_table')
         assert_equal(isinstance(op, DummyOperator), True)

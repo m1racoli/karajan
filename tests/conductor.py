@@ -38,6 +38,12 @@ class TestConductor(TestCase):
         op.execute(self.context(dag_id, item))
         return self
 
+    def test_cleanup_operator(self):
+        self.build_dags().execute('cleanup_test_aggregation')
+        self.engine.clean.assert_called_with(
+            defaults.TMP_TABLE_NAME,
+        )
+
     def test_aggregation_operator_without_parameterization(self):
         self.build_dags().execute('aggregate_test_aggregation')
         self.engine.aggregate.assert_called_with(
