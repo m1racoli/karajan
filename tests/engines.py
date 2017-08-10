@@ -38,18 +38,17 @@ class TestExasolEngine(TestCase):
             print('%s found in %s' % (dag.task_ids, dag))
             raise e
 
-    @parameterized.expand([
-        ('wo_where', None, ''),
-        ('w_where', {'item_column': 'item'}, "WHERE item_column = 'item'")])
-    def test_aggregate(self, txt, where, sql):
-        self.engine.aggregate('tmp_table', ['one_column'], "SELECT nothing", where)
-        self.engine._execute.assert_called_with(
-            "CREATE TABLE tmp_schema.tmp_table AS SELECT ['one_column'] FROM (SELECT nothing) sub %s" % sql)
+    def test_aggregate_with_where(self):
+        self.engine.aggregate('tmp_table', ['c1', 'c2'], "SELECT nothing", {'item_column': 'item'})
+        self.engine._execute.assert_called_with("CREATE TABLE tmp_schema.tmp_table AS SELECT c1, c2 FROM (SELECT nothing) sub WHERE item_column = 'item'")
+
+    def test_aggregate_without_where(self):
+        self.engine.aggregate('tmp_table', ['c1', 'c2'], "SELECT nothing", None)
+        self.engine._execute.assert_called_with("CREATE TABLE tmp_schema.tmp_table AS SELECT c1, c2 FROM (SELECT nothing) sub ")
 
     def test_cleanup(self):
         self.engine.cleanup('some_tmp_table')
         self.engine._execute.assert_called_with("DROP TABLE IF EXISTS tmp_schema.some_tmp_table")
-
 
     def test_param_column_operator_with_item(self):
         self.conf.parameterize_context().with_parameter_columns()

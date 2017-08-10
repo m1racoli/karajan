@@ -250,16 +250,6 @@ VALUES ({in_vals})
 
     # new operator design
 
-    def aggregate(self, tmp_table_name, columns, query, where=None):
-        sql = "CREATE TABLE {schema}.{table} AS SELECT {columns} FROM ({query}) sub {where}".format(
-            schema=self.tmp_schema,
-            table=tmp_table_name,
-            columns=columns,
-            query=query,
-            where=self._where(where),
-        )
-        self._execute(sql)
-
     @staticmethod
     def db_str(val):
         if isinstance(val, (str, unicode, date, datetime)):
@@ -277,6 +267,16 @@ VALUES ({in_vals})
         logging.info('Executing: ' + str(sql))
         self.hook = JdbcHook(jdbc_conn_id=self.conn_id)
         self.hook.run(sql, self.autocommit)
+
+    def aggregate(self, tmp_table_name, columns, query, where=None):
+        sql = "CREATE TABLE {schema}.{table} AS SELECT {columns} FROM ({query}) sub {where}".format(
+            schema=self.tmp_schema,
+            table=tmp_table_name,
+            columns=', '.join(columns),
+            query=query,
+            where=self._where(where),
+        )
+        self._execute(sql)
 
     def cleanup(self, tmp_table_name):
         sql = 'DROP TABLE IF EXISTS {tmp_schema}.{tmp_table}'.format(
