@@ -18,6 +18,18 @@ class TestBaseEngine(TestCase):
     def test_aggregate(self):
         self.assertRaises(NotImplementedError, self.engine.aggregate, 1, 2, 3)
 
+    def test_describe(self):
+        self.assertRaises(NotImplementedError, self.engine.describe, 1)
+
+    def test_bootstrap(self):
+        self.assertRaises(NotImplementedError, self.engine.bootstrap, 1, 2, 3)
+
+    def test_delete_timeseries(self):
+        self.assertRaises(NotImplementedError, self.engine.delete_timeseries, 1, 2, 3, 4)
+
+    def test_merge(self):
+        self.assertRaises(NotImplementedError, self.engine.merge, 1, 2, 3, 4, 5)
+
 
 class TestExasolEngine(TestCase):
     def setUp(self):

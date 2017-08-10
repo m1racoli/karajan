@@ -96,6 +96,45 @@ class BaseEngine(object):
         """
         raise NotImplementedError()
 
+    def describe(self, tmp_table_name):
+        """
+
+        :type tmp_table_name: str
+        :rtype: dict
+        """
+        raise NotImplementedError()
+
+    def bootstrap(self, schema_name, table_name, columns):
+        """
+
+        :type schema_name: str
+        :type table_name: str
+        :type columns: dict
+        """
+        raise NotImplementedError()
+
+    def delete_timeseries(self, schema_name, table_name, columns, where=None):
+        """
+
+        :type schema_name: str
+        :type table_name: str
+        :type columns: list
+        :type where: dcit
+        """
+        raise NotImplementedError()
+
+    def merge(self, tmp_table_name, schema_name, table_name, key_columns, value_columns, update_types=None):
+        """
+
+        :type tmp_table_name: str
+        :type schema_name: str
+        :type table_name: str
+        :type key_columns: dict
+        :type value_columns: dict
+        :type update_types: dict
+        """
+        raise NotImplementedError()
+
 
 class ExasolEngine(BaseEngine):
     def __init__(self, tmp_schema, conn_id=None, queue='default', retries=12, retry_delay=timedelta(seconds=300),

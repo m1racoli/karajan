@@ -1,12 +1,12 @@
 from airflow.models import DAG
 from airflow.operators.dummy_operator import DummyOperator
-from airflow.operators.subdag_operator import SubDagOperator
 
-from karajan.config import Config
+from karajan.dependencies import NothingDependency, get_dependency, TargetDependency
 from karajan.engines import BaseEngine
 from karajan.model import Target, Aggregation, Context
 from karajan.dependencies import NothingDependency, get_dependency, TargetDependency
-from karajan.operators import KarajanAggregateOperator, KarajanCleanupOperator
+from karajan.operators import *
+
 
 
 class Conductor(object):
@@ -19,7 +19,7 @@ class Conductor(object):
         self.targets = {n: Target(n, c, self.context) for n, c in self.conf['targets'].iteritems()}
         self.aggregations = {n: Aggregation(n, c, self.context) for n, c in self.conf['aggregations'].iteritems()}
 
-    def build(self, dag_id, engine=BaseEngine(), output=None, import_subdags=False):
+    def build(self, dag_id, engine=BaseEngine(), output=None):
 
         if not self.targets:
             return {}
@@ -95,12 +95,15 @@ class Conductor(object):
                 if aggregation.name not in target.aggregations:
                     continue
 
-                prepare_operator = engine.prepare_operator(dag, aggregation, target, item)
-                prepare_operator.set_upstream(aggregation_operator)
-
-                merge_operator = engine.merge_operator(dag, aggregation, target, item)
+                merge_operator = KarajanMergeOperator(
+                    engine=engine,
+                    aggregation=aggregation,
+                    target=target,
+                    params=params,
+                    dag=dag,
+                )
                 merge_operators[(aggregation.name, target.name)] = merge_operator
-                merge_operator.set_upstream(prepare_operator)
+                merge_operator.set_upstream(aggregation_operator)
                 merge_operator.set_downstream(clean_operator)
                 merge_operator.set_downstream(purge_operators[target.name])
 
