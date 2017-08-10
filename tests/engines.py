@@ -43,7 +43,13 @@ class TestExasolEngine(TestCase):
         ('w_where', {'item_column': 'item'}, "WHERE item_column = 'item'")])
     def test_aggregate(self, txt, where, sql):
         self.engine.aggregate('tmp_table', ['one_column'], "SELECT nothing", where)
-        self.engine._execute.assert_called_with("CREATE TABLE tmp_schema.tmp_table AS SELECT ['one_column'] FROM (SELECT nothing) sub %s" % sql)
+        self.engine._execute.assert_called_with(
+            "CREATE TABLE tmp_schema.tmp_table AS SELECT ['one_column'] FROM (SELECT nothing) sub %s" % sql)
+
+    def test_cleanup(self):
+        self.engine.cleanup('some_tmp_table')
+        self.engine._execute.assert_called_with("DROP TABLE IF EXISTS tmp_schema.some_tmp_table")
+
 
     def test_param_column_operator_with_item(self):
         self.conf.parameterize_context().with_parameter_columns()
@@ -182,23 +188,6 @@ VALUES (tmp.key_column, tmp.item_column, tmp.test_src_column, tmp.another_test_s
         INSERT (key_column, timeseries_column, test_column, another_test_column)
         VALUES (tmp.key_column, tmp.timeseries_column, tmp.test_src_column, tmp.another_test_src_column)
                 """
-        assert_str_equal(expected, op.sql)
-
-    def test_cleanup_operator_without_parameterization(self):
-        op = self.build_dags().get_operator('cleanup_test_aggregation')
-        expected = "DROP TABLE IF EXISTS tmp_schema.test_dag_agg_test_aggregation_{{ ds_nodash }}"
-        assert_str_equal(expected, op.sql)
-
-    def test_cleanup_operator_with_parameterized_context(self):
-        self.conf.parameterize_context()
-        op = self.build_dags().get_operator('cleanup_test_aggregation', 'item')
-        expected = "DROP TABLE IF EXISTS tmp_schema.test_dag_item_agg_test_aggregation_{{ ds_nodash }}"
-        assert_str_equal(expected, op.sql)
-
-    def test_cleanup_operator_with_parameterized_context_and_aggregation(self):
-        self.conf.parameterize_context().parameterize_aggregation()
-        op = self.build_dags().get_operator('cleanup_test_aggregation', 'item')
-        expected = "DROP TABLE IF EXISTS tmp_schema.test_dag_item_agg_test_aggregation_{{ ds_nodash }}"
         assert_str_equal(expected, op.sql)
 
     def test_prepare_operator_without_timeseries(self):

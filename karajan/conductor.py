@@ -6,7 +6,7 @@ from karajan.config import Config
 from karajan.engines import BaseEngine
 from karajan.model import Target, Aggregation, Context
 from karajan.dependencies import NothingDependency, get_dependency, TargetDependency
-from karajan.operators import KarajanAggregateOperator
+from karajan.operators import KarajanAggregateOperator, KarajanCleanupOperator
 
 
 class Conductor(object):
@@ -68,7 +68,9 @@ class Conductor(object):
                 params=params,
                 dag=dag
             )
+
             aggregation_operators[aggregation.name] = aggregation_operator
+
             for dependency in self._get_dependencies(aggregation, params):
                 if isinstance(dependency, TargetDependency):
                     target_dependencies[aggregation.name] = target_dependencies.get(aggregation.name, [])
@@ -81,7 +83,12 @@ class Conductor(object):
                     dependency_operator.set_upstream(init)
                 aggregation_operator.set_upstream(dependency_operators[dep_id])
 
-            clean_operator = engine.cleanup_operator(dag, aggregation, item)
+            clean_operator = KarajanCleanupOperator(
+                engine=engine,
+                aggregation=aggregation,
+                params=params,
+                dag=dag
+            )
             clean_operator.set_downstream(done)
 
             for target in targets:
