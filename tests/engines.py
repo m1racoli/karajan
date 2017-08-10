@@ -17,6 +17,9 @@ class TestBaseEngine(TestCase):
     def test_aggregate(self):
         self.assertRaises(NotImplementedError, self.engine.aggregate, 1, 2, 3)
 
+    def test_cleanup(self):
+        self.assertRaises(NotImplementedError, self.engine.cleanup, 1)
+
     def test_describe(self):
         self.assertRaises(NotImplementedError, self.engine.describe, 1)
 
@@ -123,6 +126,8 @@ WHEN NOT MATCHED THEN
 INSERT (key_col, time_col, val_1, val_2)
 VALUES (tmp.key_col, tmp.time_col, tmp.src_val_1, tmp.src_val_2)""")
 
+    # old tests
+
     def test_param_column_operator_with_item(self):
         self.conf.parameterize_context().with_parameter_columns()
         op = self.build_dags().get_operator('fill_parameter_columns_test_table', 'item')
@@ -192,114 +197,6 @@ VALUES (tmp.key_col, tmp.time_col, tmp.src_val_1, tmp.src_val_2)""")
         except StandardError as e:
             exception = e
         assert_equal(True, isinstance(exception, StandardError))
-
-    def test_merge_operator_without_parameterization(self):
-        op = self.build_dags().get_operator('merge_test_aggregation_test_table')
-        expected = """
-MERGE INTO test_schema.test_table tbl
-USING (SELECT key_column, test_src_column, another_test_src_column FROM tmp_schema.test_dag_agg_test_aggregation_{{ ds_nodash }}) tmp
-ON tbl.key_column=tmp.key_column
-WHEN MATCHED THEN
-UPDATE SET
-tbl.test_column = IFNULL(tmp.test_src_column, tbl.test_column),
-tbl.another_test_column = COALESCE(GREATEST(tbl.another_test_column, tmp.another_test_src_column), tbl.another_test_column, tmp.another_test_src_column)
-WHEN NOT MATCHED THEN
-INSERT (key_column, test_column, another_test_column)
-VALUES (tmp.key_column, tmp.test_src_column, tmp.another_test_src_column)
-        """
-        assert_str_equal(expected, op.sql)
-
-    def test_merge_operator_with_parameterized_context(self):
-        self.conf.parameterize_context()
-        op = self.build_dags().get_operator('merge_test_aggregation_test_table', 'item')
-        expected = """
-MERGE INTO test_schema.test_table tbl
-USING (SELECT key_column, item_column, test_src_column, another_test_src_column FROM tmp_schema.test_dag_item_agg_test_aggregation_{{ ds_nodash }}) tmp
-ON tbl.key_column=tmp.key_column AND tbl.item_column=tmp.item_column
-WHEN MATCHED THEN
-UPDATE SET
-tbl.test_column = IFNULL(tmp.test_src_column, tbl.test_column),
-tbl.another_test_column = COALESCE(GREATEST(tbl.another_test_column, tmp.another_test_src_column), tbl.another_test_column, tmp.another_test_src_column)
-WHEN NOT MATCHED THEN
-INSERT (key_column, item_column, test_column, another_test_column)
-VALUES (tmp.key_column, tmp.item_column, tmp.test_src_column, tmp.another_test_src_column)
-        """
-        assert_equal(True, op.depends_on_past)
-        assert_str_equal(expected, op.sql)
-
-    def test_merge_operator_with_parameterized_contextand_aggregation(self):
-        self.conf.parameterize_context().parameterize_aggregation()
-        op = self.build_dags().get_operator('merge_test_aggregation_test_table', 'item')
-        expected = """
-MERGE INTO test_schema.test_table tbl
-USING (SELECT key_column, item_column, test_src_column, another_test_src_column FROM tmp_schema.test_dag_item_agg_test_aggregation_{{ ds_nodash }}) tmp
-ON tbl.key_column=tmp.key_column AND tbl.item_column=tmp.item_column
-WHEN MATCHED THEN
-UPDATE SET
-tbl.test_column = IFNULL(tmp.test_src_column, tbl.test_column),
-tbl.another_test_column = COALESCE(GREATEST(tbl.another_test_column, tmp.another_test_src_column), tbl.another_test_column, tmp.another_test_src_column)
-WHEN NOT MATCHED THEN
-INSERT (key_column, item_column, test_column, another_test_column)
-VALUES (tmp.key_column, tmp.item_column, tmp.test_src_column, tmp.another_test_src_column)
-        """
-        assert_equal(True, op.depends_on_past)
-        assert_str_equal(expected, op.sql)
-
-    def test_merge_operator_with_timeseries(self):
-        self.conf.with_timeseries()
-        op = self.build_dags().get_operator('merge_test_aggregation_test_table')
-        expected = """
-        MERGE INTO test_schema.test_table tbl
-        USING (SELECT key_column, timeseries_column, test_src_column, another_test_src_column FROM tmp_schema.test_dag_agg_test_aggregation_{{ ds_nodash }}) tmp
-        ON tbl.key_column=tmp.key_column AND tbl.timeseries_column=tmp.timeseries_column
-        WHEN MATCHED THEN
-        UPDATE SET
-        tbl.test_column = IFNULL(tmp.test_src_column, tbl.test_column),
-        tbl.another_test_column = COALESCE(GREATEST(tbl.another_test_column, tmp.another_test_src_column), tbl.another_test_column, tmp.another_test_src_column)
-        WHEN NOT MATCHED THEN
-        INSERT (key_column, timeseries_column, test_column, another_test_column)
-        VALUES (tmp.key_column, tmp.timeseries_column, tmp.test_src_column, tmp.another_test_src_column)
-                """
-        assert_str_equal(expected, op.sql)
-
-    def test_prepare_operator_without_timeseries(self):
-        op = self.build_dags().get_operator('prepare_test_aggregation_test_table')
-        assert_equal(isinstance(op, DummyOperator), True)
-
-    def test_prepare_operator_with_timeseries(self):
-        self.conf.with_timeseries()
-        op = self.build_dags().get_operator('prepare_test_aggregation_test_table')
-        expected = "UPDATE test_schema.test_table SET test_column = NULL, another_test_column = NULL WHERE timeseries_column BETWEEN '{{ ds }}' AND '{{ ds }}'"
-        assert_str_equal(expected, op.sql)
-
-    def test_prepare_operator_with_timeseries_and_parameterized_context(self):
-        self.conf.with_timeseries().parameterize_context()
-        op = self.build_dags().get_operator('prepare_test_aggregation_test_table', 'item')
-        expected = "UPDATE test_schema.test_table SET test_column = NULL, another_test_column = NULL WHERE timeseries_column BETWEEN '{{ ds }}' AND '{{ ds }}' AND item_column = 'item'"
-        assert_str_equal(expected, op.sql)
-
-    def test_prepare_operator_with_timeseries_and_parameterized_context_and_aggregation(self):
-        self.conf.with_timeseries().parameterize_context().parameterize_aggregation()
-        op = self.build_dags().get_operator('prepare_test_aggregation_test_table', 'item')
-        expected = "UPDATE test_schema.test_table SET test_column = NULL, another_test_column = NULL WHERE timeseries_column BETWEEN '{{ ds }}' AND '{{ ds }}' AND item_column = 'item'"
-        assert_str_equal(expected, op.sql)
-
-    def test_prepare_operator_with_timeseries_and_offset(self):
-        self.conf.with_timeseries().with_offset()
-        op = self.build_dags().get_operator('prepare_test_aggregation_test_table')
-        expected = "UPDATE test_schema.test_table SET test_column = NULL, another_test_column = NULL WHERE timeseries_column BETWEEN '{{ macros.ds_add(ds, -1) }}' AND '{{ macros.ds_add(ds, -1) }}'"
-        assert_str_equal(expected, op.sql)
-
-    def test_prepare_operator_with_timeseries_and_reruns(self):
-        self.conf.with_timeseries().with_reruns()
-        op = self.build_dags().get_operator('prepare_test_aggregation_test_table')
-        expected = "UPDATE test_schema.test_table SET test_column = NULL, another_test_column = NULL WHERE timeseries_column BETWEEN '{{ macros.ds_add(ds, -3) }}' AND '{{ ds }}'"
-        assert_str_equal(expected, op.sql)
-
-    def test_prepare_operator_with_timeseries_and_offset_reruns(self):
-        self.conf.with_timeseries().with_offset().with_reruns()
-        op = self.build_dags().get_operator('prepare_test_aggregation_test_table')
-        expected = "UPDATE test_schema.test_table SET test_column = NULL, another_test_column = NULL WHERE timeseries_column BETWEEN '{{ macros.ds_add(ds, -4) }}' AND '{{ macros.ds_add(ds, -1) }}'"
 
     def test_purge_operator_without_timeseries(self):
         op = self.build_dags().get_operator('purge_test_table')

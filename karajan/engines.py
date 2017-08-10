@@ -46,20 +46,6 @@ class BaseEngine(object):
             dag=dag,
         )
 
-    def merge_operator(self, dag, table, agg, item):
-        return self._dummy_operator(self._merge_operator_id(agg, table), dag)
-
-    @staticmethod
-    def _merge_operator_id(agg, target):
-        return 'merge_%s_%s' % (agg.name, target.name)
-
-    def cleanup_operator(self, dag, agg, item):
-        return self._dummy_operator(self._cleanup_operator_id(agg), dag)
-
-    @staticmethod
-    def _cleanup_operator_id(agg):
-        return 'cleanup_%s' % agg.name
-
     def purge_operator(self, dag, target, item):
         return self._dummy_operator(self._purge_operator_id(target), dag)
 
@@ -77,6 +63,8 @@ class BaseEngine(object):
     @staticmethod
     def _dummy_operator(task_id, dag):
         return DummyOperator(task_id=task_id, dag=dag)
+
+    # new interface
 
     def aggregate(self, tmp_table_name, columns, query, where=None):
         """
@@ -157,120 +145,6 @@ class ExasolEngine(BaseEngine):
             **self.task_attributes
         )
 
-    def prepare_operator(self, dag, agg, target, item):
-        if not target.is_timeseries():
-            return self._dummy_operator(self._prepare_operator_id(agg, target), dag)
-        set_cols = ', '.join("%s = NULL" % c for c in target.aggregated_columns(agg.name))
-        start_date = '{{ ds }}' if (agg.reruns + agg.offset == 0) else '{{ macros.ds_add(ds, -%i) }}' % (
-            agg.reruns + agg.offset)
-        end_date = '{{ ds }}' if agg.offset == 0 else '{{ macros.ds_add(ds, -%i) }}' % agg.offset
-        where_item = ' AND %s = %s' % (agg.context.item_column, self.db_str(item)) if item else ''
-        sql = "UPDATE {target_table} SET {set_cols} WHERE {timeseries_col} BETWEEN '{start_date}' AND '{end_date}'{where_item}".format(
-            target_table=target.table(),
-            set_cols=set_cols,
-            timeseries_col=target.timeseries_key,
-            where_item=where_item,
-            start_date=start_date,
-            end_date=end_date,
-        )
-        return JdbcOperator(
-            task_id=self._prepare_operator_id(agg, target),
-            dag=dag,
-            sql=sql,
-            jdbc_conn_id=self.conn_id,
-            autocommit=self.autocommit,
-            **self.task_attributes
-        )
-
-    _merge_query_template = """
-MERGE INTO {target_table} tbl
-USING (SELECT {src_cols} FROM {tmp_table}) tmp
-ON {on_cols}
-WHEN MATCHED THEN
-UPDATE SET {set_cols}
-WHEN NOT MATCHED THEN
-INSERT ({in_cols})
-VALUES ({in_vals})
-        """
-
-    def merge_operator(self, dag, agg, target, item):
-        key_columns = target.key_columns
-        agg_src_columns = target.src_column_names(agg.name)
-        src_cols = ', '.join(agg_src_columns)
-        on_cols = ' AND '.join(["tbl.%s=tmp.%s" % (c, c) for c in key_columns])
-        agg_columns = target.aggregated_columns(agg.name)
-        agg_column_names = [c for c in agg_columns.keys()]
-        in_cols = ', '.join(key_columns + agg_column_names)
-        in_vals = ', '.join(["tmp.%s" % c for c in (agg_src_columns)])
-
-        def update_op(agg_col):
-            if agg_col.update_type.upper() == AggregatedColumn.replace_update_type:
-                return "\ntbl.{tbl_col_name} = IFNULL(tmp.{tmp_col_name}, tbl.{tbl_col_name})".format(
-                    tbl_col_name=agg_col.name, tmp_col_name=agg_col.src_column_name)
-            elif agg_col.update_type.upper() == AggregatedColumn.keep_update_type:
-                return "\ntbl.{tbl_col_name} = IFNULL(tbl.{tbl_col_name}, tmp.{tmp_col_name})".format(
-                    tbl_col_name=agg_col.name, tmp_col_name=agg_col.src_column_name)
-            elif agg_col.update_type.upper() == AggregatedColumn.min_update_type:
-                return "\ntbl.{tbl_col_name} = COALESCE(LEAST(tbl.{tbl_col_name}, tmp.{tmp_col_name}), tbl.{tbl_col_name}, tmp.{tmp_col_name})".format(
-                    tbl_col_name=agg_col.name, tmp_col_name=agg_col.src_column_name)
-            elif agg_col.update_type.upper() == AggregatedColumn.max_update_type:
-                return "\ntbl.{tbl_col_name} = COALESCE(GREATEST(tbl.{tbl_col_name}, tmp.{tmp_col_name}), tbl.{tbl_col_name}, tmp.{tmp_col_name})".format(
-                    tbl_col_name=agg_col.name, tmp_col_name=agg_col.src_column_name)
-            return None
-
-        set_cols = ', '.join([update_op(c) for c in agg_columns.values() if update_op(c) is not None])
-        sql = self._merge_query_template.format(
-            target_table=target.table(),
-            tmp_table=self._aggregation_table_name(dag, agg),
-            on_cols=on_cols,
-            src_cols=src_cols,
-            in_cols=in_cols,
-            in_vals=in_vals,
-            set_cols=set_cols
-        )
-        return JdbcOperator(
-            task_id=self._merge_operator_id(agg, target),
-            jdbc_conn_id=self.conn_id,
-            dag=dag,
-            sql=sql,
-            autocommit=self.autocommit,
-            depends_on_past=target.depends_on_past(agg.name),
-            **self.task_attributes
-        )
-
-    # TODO the purge logic needs to be refined. we\'ll do nothing for now due to the rare use case
-    # def purge_operator(self, dag, target, item):
-    #     if not target.is_timeseries():
-    #         return self._dummy_operator(self._purge_operator_id(target), dag)
-    #     where_item = ' AND %s = %s' % (target.context.item_column, self.db_str(item)) if item else ''
-    #     where_agg_col = ' AND '.join("%s = NULL" % c for c in target.aggregated_columns())
-    #     sql="DELETE FROM {target_table} WHERE {timeseries_key} = '{{{{ ds }}}}'{where_item} AND {where_agg_col}".format(
-    #         target_table=target.table(),
-    #         timeseries_key=target.timeseries_key,
-    #         where_item=where_item,
-    #         where_agg_col=where_agg_col,
-    #     )
-    #     return JdbcOperator(
-    #         task_id=self._purge_operator_id(target),
-    #         dag=dag,
-    #         sql=sql,
-    #         jdbc_conn_id=self.conn_id,
-    #         autocommit=self.autocommit,
-    #         **self.task_attributes
-    #     )
-
-
-
-    def cleanup_operator(self, dag, agg, item):
-        return JdbcOperator(
-            task_id=self._cleanup_operator_id(agg),
-            jdbc_conn_id=self.conn_id,
-            dag=dag,
-            sql='DROP TABLE IF EXISTS %s' % (self._aggregation_table_name(dag, agg)),
-            autocommit=self.autocommit,
-            **self.task_attributes
-        )
-
     def param_column_op(self, dag, target, params, item):
         sql = []
         for column, pname in target.parameter_columns.iteritems():
@@ -296,7 +170,7 @@ VALUES ({in_vals})
     def _aggregation_table_name(self, dag, agg):
         return '%s.%s_agg_%s_{{ ds_nodash }}' % (self.tmp_schema, dag.dag_id.replace('.', '_'), agg.name)
 
-    # new operator design
+    # new interface
 
     @staticmethod
     def db_str(val):

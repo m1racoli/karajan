@@ -85,7 +85,8 @@ class KarajanMergeOperator(KarajanBaseOperator):
         # get source column definitions from tmp table
         src_columns = self.engine.describe(tmp_table_name)
         # map source column definitions to target columns
-        columns = {ac.name: src_columns[ac.src_column_name] for ac in self.target.aggregated_columns(self.aggregation.name).values()}
+        columns = {ac.name: src_columns[ac.src_column_name] for ac in
+                   self.target.aggregated_columns(self.aggregation.name).values()}
         for kc in self.target.key_columns:
             columns[kc] = src_columns[kc]
         # bootstrap table and columns
@@ -102,9 +103,11 @@ class KarajanMergeOperator(KarajanBaseOperator):
             self.engine.delete_timeseries(schema_name, table_name, value_columns, where)
 
         # merge
-        value_columns = {ac.name: ac.src_column_name for ac in self.target.aggregated_columns(self.aggregation.name).values()}
+        value_columns = {ac.name: ac.src_column_name for ac in
+                         self.target.aggregated_columns(self.aggregation.name).values()}
         if self.target.is_timeseries():
             update_types = None
         else:
-            update_types = {ac.name: ac.update_type for ac in self.target.aggregated_columns(self.aggregation.name).values()}
+            update_types = {ac.name: ac.update_type for ac in
+                            self.target.aggregated_columns(self.aggregation.name).values()}
         self.engine.merge(tmp_table_name, schema_name, table_name, self.target.key_columns, value_columns, update_types)
