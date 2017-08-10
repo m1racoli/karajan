@@ -40,7 +40,7 @@ class TestConductor(TestCase):
 
     def test_cleanup_operator(self):
         self.build_dags().execute('cleanup_test_aggregation')
-        self.engine.clean.assert_called_with(
+        self.engine.cleanup.assert_called_with(
             defaults.TMP_TABLE_NAME,
         )
 

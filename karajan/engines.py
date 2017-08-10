@@ -89,7 +89,7 @@ class BaseEngine(object):
         """
         raise NotImplementedError()
 
-    def clean(self, tmp_table_name):
+    def cleanup(self, tmp_table_name):
         """
 
         :type tmp_table_name: str
@@ -278,7 +278,7 @@ VALUES ({in_vals})
         self.hook = JdbcHook(jdbc_conn_id=self.conn_id)
         self.hook.run(sql, self.autocommit)
 
-    def clean(self, tmp_table_name):
+    def cleanup(self, tmp_table_name):
         sql = 'DROP TABLE IF EXISTS {tmp_schema}.{tmp_table}'.format(
             tmp_schema=self.tmp_schema,
             tmp_table=tmp_table_name,

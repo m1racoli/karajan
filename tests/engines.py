@@ -9,7 +9,7 @@ from karajan.conductor import Conductor
 from karajan.engines import *
 from tests.helpers.assertions import assert_str_equal
 from tests.helpers.config import ConfigHelper
-from tests.helpers import defaults
+
 
 class TestBaseEngine(TestCase):
     def setUp(self):
@@ -43,12 +43,17 @@ class TestExasolEngine(TestCase):
         ('w_where', {'item_column': 'item'}, "WHERE item_column = 'item'")])
     def test_aggregate(self, txt, where, sql):
         self.engine.aggregate('tmp_table', ['one_column'], "SELECT nothing", where)
-        self.engine._execute.assert_called_with("CREATE TABLE tmp_schema.tmp_table AS SELECT ['one_column'] FROM (SELECT nothing) sub %s" % sql)
+        self.engine._execute.assert_called_with(
+            "CREATE TABLE tmp_schema.tmp_table AS SELECT ['one_column'] FROM (SELECT nothing) sub %s" % sql)
 
     def test_cleanup(self):
-        self.engine.clean(defaults.TMP_TABLE_NAME)
-        self.engine._execute.assert_called_with("DROP TABLE IF EXISTS tmp_schema.%s" % defaults.TMP_TABLE_NAME)
+        self.engine.cleanup('some_tmp_table')
+        self.engine._execute.assert_called_with("DROP TABLE IF EXISTS tmp_schema.some_tmp_table")
 
+    def test_cleanup_with_param(self):
+        self.conf.parameterize_context()
+        self.engine.cleanup('some_tmp_table')
+        self.engine._execute.assert_called_with("DROP TABLE IF EXISTS tmp_schema.some_tmp_table")
 
     def test_param_column_operator_with_item(self):
         self.conf.parameterize_context().with_parameter_columns()
