@@ -69,7 +69,6 @@ def step_impl(context, task_id, dag_id, task_type):
 
 @then(u'in the DAG {dag_id} {downstream_id} should depend on {upstream_id}')
 def step_impl(context, dag_id, downstream_id, upstream_id):
-    print(get_dag(context, dag_id).task_ids)
     downstream = get_task(context, dag_id, downstream_id)
     upstream = get_task(context, dag_id, upstream_id)
     assert_contains(downstream.upstream_list, upstream)
