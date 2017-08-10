@@ -115,7 +115,6 @@ class Conductor(object):
                     # nothing to wait for for this item
                     continue
                 for agg_id in target.aggregations_for_columns(target_dependency.columns):
-                    print("(%s,%s) -> %s" % (agg_id, target.name, aggregation_id))
                     aggregation_operator.set_upstream(merge_operators[(agg_id, target.name)])
         return dag
 

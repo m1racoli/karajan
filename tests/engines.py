@@ -35,6 +35,7 @@ class TestExasolEngine(TestCase):
     def setUp(self):
         self.engine = ExasolEngine('tmp_schema')
         self.engine._execute = MagicMock()
+        self.engine._select = MagicMock()
         self.conf = ConfigHelper()
         self.dags = {}
 
@@ -61,6 +62,67 @@ class TestExasolEngine(TestCase):
     def test_cleanup(self):
         self.engine.cleanup('some_tmp_table')
         self.engine._execute.assert_called_with("DROP TABLE IF EXISTS tmp_schema.some_tmp_table")
+
+    def test_describe(self):
+        self.engine._select.return_value = [['KEY_COLUMN', 'VARCHAR(20) UTF8'], ['TIMESERIES_COLUMN', 'DATE']]
+        src_columns = self.engine.describe('tmp_table')
+        self.engine._select.assert_called_with("SELECT COLUMN_NAME, COLUMN_TYPE FROM EXA_ALL_COLUMNS WHERE COLUMN_TABLE = 'TMP_TABLE' AND COLUMN_SCHEMA = 'TMP_SCHEMA'")
+        assert_equal(src_columns, {'key_column': 'VARCHAR(20) UTF8', 'timeseries_column': 'DATE'})
+
+    def test_bootstrap_table_missing(self):
+        self.engine._select.return_value = []
+        self.engine.bootstrap('some_schema','some_table', {'key_column': 'VARCHAR(20) UTF8', 'timeseries_column': 'DATE'})
+        self.engine._select.assert_called_with(
+            "SELECT COLUMN_NAME, COLUMN_TYPE FROM EXA_ALL_COLUMNS WHERE COLUMN_TABLE = 'SOME_TABLE' AND COLUMN_SCHEMA = 'SOME_SCHEMA'")
+        self.engine._execute.assert_called_with("CREATE TABLE SOME_SCHEMA.SOME_TABLE (TIMESERIES_COLUMN DATE DEFAULT NULL, KEY_COLUMN VARCHAR(20) UTF8 DEFAULT NULL)")
+
+    def test_bootstrap_column_missing(self):
+        self.engine._select.return_value = [['KEY_COLUMN', 'VARCHAR(20) UTF8']]
+        self.engine.bootstrap('some_schema','some_table', {'key_column': 'VARCHAR(20) UTF8', 'timeseries_column': 'DATE'})
+        self.engine._select.assert_called_with(
+            "SELECT COLUMN_NAME, COLUMN_TYPE FROM EXA_ALL_COLUMNS WHERE COLUMN_TABLE = 'SOME_TABLE' AND COLUMN_SCHEMA = 'SOME_SCHEMA'")
+        self.engine._execute.assert_called_with(["ALTER TABLE SOME_SCHEMA.SOME_TABLE ADD COLUMN TIMESERIES_COLUMN DATE DEFAULT NULL"])
+
+    def test_bootstrap_nothing_missing(self):
+        self.engine._select.return_value = [['KEY_COLUMN', 'VARCHAR(20) UTF8'], ['TIMESERIES_COLUMN', 'DATE']]
+        self.engine.bootstrap('some_schema','some_table', {'key_column': 'VARCHAR(20) UTF8', 'timeseries_column': 'DATE'})
+        self.engine._select.assert_called_with(
+            "SELECT COLUMN_NAME, COLUMN_TYPE FROM EXA_ALL_COLUMNS WHERE COLUMN_TABLE = 'SOME_TABLE' AND COLUMN_SCHEMA = 'SOME_SCHEMA'")
+        self.engine._execute.assert_not_called()
+
+    def test_delete_timeseries(self):
+        self.engine.delete_timeseries('some_schema', 'some_table', ['col_1', 'col_2'], where={'time_col': ('2017-02-28', '2017-04-01'), 'item_col': 'item'})
+        self.engine._execute.assert_called_with("UPDATE some_schema.some_table SET col_1 = NULL, col_2 = NULL WHERE time_col BETWEEN '2017-02-28' AND '2017-04-01' AND item_col = 'item'")
+
+    @parameterized.expand([
+        ('MIN', "COALESCE(LEAST(tbl.val, tmp.src_val), tbl.val, tmp.src_val)"),
+        ('MAX', "COALESCE(GREATEST(tbl.val, tmp.src_val), tbl.val, tmp.src_val)"),
+        ('KEEP', "IFNULL(tbl.val, tmp.src_val)"),
+        ('REPLACE', "IFNULL(tmp.src_val, tbl.val)"),
+    ])
+    def test_merge_without_timeseries(self, update_type, stm):
+        self.engine.merge('some_tmp_table', 'some_schema', 'some_table', ['key_col'], {'val': 'src_val'}, {'val': update_type})
+        self.engine._execute.assert_called_with("""MERGE INTO some_schema.some_table tbl
+USING (SELECT key_col, src_val FROM tmp_schema.some_tmp_table) tmp
+ON tbl.key_col = tmp.key_col
+WHEN MATCHED THEN
+UPDATE SET
+tbl.val = %s
+WHEN NOT MATCHED THEN
+INSERT (key_col, val)
+VALUES (tmp.key_col, tmp.src_val)""" % stm)
+
+    def test_merge_with_timeseries(self):
+        self.engine.merge('some_tmp_table', 'some_schema', 'some_table', ['key_col', 'time_col'], {'val_1': 'src_val_1', 'val_2': 'src_val_2'})
+        self.engine._execute.assert_called_with("""MERGE INTO some_schema.some_table tbl
+USING (SELECT key_col, time_col, src_val_1, src_val_2 FROM tmp_schema.some_tmp_table) tmp
+ON tbl.key_col = tmp.key_col AND tbl.time_col = tmp.time_col
+WHEN MATCHED THEN
+UPDATE SET
+tbl.val_1 = tmp.src_val_1, tbl.val_2 = tmp.src_val_2
+WHEN NOT MATCHED THEN
+INSERT (key_col, time_col, val_1, val_2)
+VALUES (tmp.key_col, tmp.time_col, tmp.src_val_1, tmp.src_val_2)""")
 
     def test_param_column_operator_with_item(self):
         self.conf.parameterize_context().with_parameter_columns()
@@ -239,7 +301,6 @@ VALUES (tmp.key_column, tmp.item_column, tmp.test_src_column, tmp.another_test_s
         self.conf.with_timeseries().with_offset().with_reruns()
         op = self.build_dags().get_operator('prepare_test_aggregation_test_table')
         expected = "UPDATE test_schema.test_table SET test_column = NULL, another_test_column = NULL WHERE timeseries_column BETWEEN '{{ macros.ds_add(ds, -4) }}' AND '{{ macros.ds_add(ds, -1) }}'"
-        assert_str_equal(expected, op.sql)
 
     def test_purge_operator_without_timeseries(self):
         op = self.build_dags().get_operator('purge_test_table')

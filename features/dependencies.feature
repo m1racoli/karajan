@@ -32,7 +32,7 @@ Feature: Dependencies
       | target         |
       | another_target |
     When I build the DAGs
-    Then in the DAG test aggregate_test should depend on merge_another_target_another_agg
+    Then in the DAG test aggregate_test should depend on merge_another_agg_another_target
 
   Scenario: Target dependency with column resolution
     Given the target another_target with the aggregation another_agg
@@ -41,5 +41,5 @@ Feature: Dependencies
       | target         | columns            |
       | another_target | another_agg_column |
     When I build the DAGs
-    Then in the DAG test aggregate_test should depend on merge_another_target_another_agg
-    And in the DAG test aggregate_test should not depend on merge_another_target_another_unused_agg
+    Then in the DAG test aggregate_test should depend on merge_another_agg_another_target
+    And in the DAG test aggregate_test should not depend on merge_another_unused_agg_another_target
