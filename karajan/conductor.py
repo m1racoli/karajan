@@ -68,6 +68,11 @@ class Conductor(object):
                 params=params,
                 dag=dag
             )
+            clean_operator = KarajanCleanOperator(
+                engine=engine,
+                params=params,
+                dag=dag
+            )
             aggregation_operators[aggregation.name] = aggregation_operator
             for dependency in self._get_dependencies(aggregation, params):
                 if isinstance(dependency, TargetDependency):
@@ -81,7 +86,6 @@ class Conductor(object):
                     dependency_operator.set_upstream(init)
                 aggregation_operator.set_upstream(dependency_operators[dep_id])
 
-            clean_operator = engine.cleanup_operator(dag, aggregation, item)
             clean_operator.set_downstream(done)
 
             for target in targets:

@@ -36,7 +36,6 @@ class KarajanAggregateOperator(KarajanBaseOperator):
 
     def execute(self, context):
         self.set_execution_dates(context)
-        print(self.aggregation.query)
         query = Config.render(self.aggregation.query, self.params)
 
         # set where and selected columns based on parametrization level
@@ -52,3 +51,13 @@ class KarajanAggregateOperator(KarajanBaseOperator):
                 where = {item_column: item}
 
         self.engine.aggregate(self.tmp_table_name(context), columns, query, where)
+class KarajanCleanOperator(KarajanBaseOperator):
+    ui_color = '#4255ff'
+
+    def __init__(self, *args, **kwargs):
+        super(KarajanCleanOperator, self).__init__(*args, **kwargs)
+
+    def execute(self, context):
+        self.engine.clean(self.tmp_table_name(context))
+
+
