@@ -194,3 +194,44 @@ class TestConductor(TestCase):
                                              defaults.TARGET_NAME,
                                              ['key_column', 'timeseries_column', 'item_column'],
                                              defaults.MERGE_VALUE_COLUMNS, None)
+
+    def test_finish_operator_purge_without_timeseries(self):
+        self.build_dags().execute('finish_test_table')
+        self.engine.purge.assert_not_called()
+
+    def test_finish_operator_purge_with_timeseries(self):
+        self.conf.with_timeseries()
+        self.build_dags().execute('finish_test_table')
+        self.engine.purge.assert_called_with(defaults.TARGET_SCHEMA_NAME, defaults.TARGET_NAME,
+                                             defaults.TARGET_ALL_VALUE_COLUMNS,
+                                             {defaults.TIMESERIES_KEY: defaults.DATE_RANGE})
+
+    def test_finish_operator_purge_with_timeseries_and_parametetrization(self):
+        self.conf.with_timeseries().parameterize_context()
+        self.build_dags().execute('finish_test_table', 'item')
+        self.engine.purge.assert_called_with(defaults.TARGET_SCHEMA_NAME, defaults.TARGET_NAME,
+                                             defaults.TARGET_ALL_VALUE_COLUMNS,
+                                             {defaults.TIMESERIES_KEY: defaults.DATE_RANGE, 'item_column': 'item'})
+
+    def test_finish_operator_purge_with_timeseries_reruns_and_offsets(self):
+        self.conf.with_timeseries().with_offset().with_reruns()
+        self.build_dags().execute('finish_test_table')
+        self.engine.purge.assert_called_with(defaults.TARGET_SCHEMA_NAME, defaults.TARGET_NAME,
+                                             defaults.TARGET_ALL_VALUE_COLUMNS,
+                                             {defaults.TIMESERIES_KEY: ('2017-07-28', '2017-08-01')})
+
+    def test_finish_operator_parameters_without_parameter_columns(self):
+        self.build_dags().execute('finish_test_table')
+        self.engine.parameters.assert_not_called()
+
+    def test_finish_operator_parameters(self):
+        self.conf.with_parameter_columns()
+        self.build_dags().execute('finish_test_table')
+        self.engine.parameters.assert_called_with(defaults.TARGET_SCHEMA_NAME, defaults.TARGET_NAME,
+                                                  defaults.PARAMETER_COLUMNS, None)
+
+    def test_finish_operator_parameters_with_parametrization(self):
+        self.conf.with_parameter_columns().parameterize_context()
+        self.build_dags().execute('finish_test_table', 'item')
+        self.engine.parameters.assert_called_with(defaults.TARGET_SCHEMA_NAME, defaults.TARGET_NAME,
+                                                  defaults.PARAMETER_COLUMNS, {'item_column': 'item'})

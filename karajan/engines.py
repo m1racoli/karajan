@@ -46,20 +46,6 @@ class BaseEngine(object):
             dag=dag,
         )
 
-    def purge_operator(self, dag, target, item):
-        return self._dummy_operator(self._purge_operator_id(target), dag)
-
-    @staticmethod
-    def _purge_operator_id(target):
-        return 'purge_%s' % target.name
-
-    def param_column_op(self, dag, target, params, item):
-        return self._dummy_operator(self._param_column_operator_id(target), dag)
-
-    @staticmethod
-    def _param_column_operator_id(target):
-        return 'fill_parameter_columns_%s' % target.name
-
     @staticmethod
     def _dummy_operator(task_id, dag):
         return DummyOperator(task_id=task_id, dag=dag)
@@ -122,6 +108,26 @@ class BaseEngine(object):
         """
         raise NotImplementedError()
 
+    def purge(self, schema_name, table_name, value_columns, where):
+        """
+
+        :type schema_name: str
+        :type table_name: str
+        :type value_columns: list
+        :type update_types: dict
+        """
+        raise NotImplementedError()
+
+    def parameters(self, schema_name, table_name, parameter_columns, where):
+        """
+
+        :type schema_name: str
+        :type table_name: str
+        :type parameter_columns: dict
+        :type update_types: dict
+        """
+        raise NotImplementedError()
+
 
 class ExasolEngine(BaseEngine):
     def __init__(self, tmp_schema, conn_id=None, queue='default', retries=12, retry_delay=timedelta(seconds=300),
@@ -144,31 +150,6 @@ class ExasolEngine(BaseEngine):
                 dep.schema, dep.table),
             **self.task_attributes
         )
-
-    def param_column_op(self, dag, target, params, item):
-        sql = []
-        for column, pname in target.parameter_columns.iteritems():
-            sql.append(
-                "UPDATE {schema}.{table} SET {column} = {value} WHERE ({column} IS NULL OR {column} != {value})".format(
-                    table=target.name,
-                    schema=target.schema,
-                    column=column,
-                    value=self.db_str(params[pname]),
-                ))
-        if item:
-            sql = ["%s AND %s = %s" % (s, target.context.item_column, self.db_str(item)) for s in sql]
-        return JdbcOperator(
-            task_id=self._param_column_operator_id(target),
-            jdbc_conn_id=self.conn_id,
-            dag=dag,
-            sql=sql,
-            autocommit=self.autocommit,
-            depends_on_past=True,
-            **self.task_attributes
-        )
-
-    def _aggregation_table_name(self, dag, agg):
-        return '%s.%s_agg_%s_{{ ds_nodash }}' % (self.tmp_schema, dag.dag_id.replace('.', '_'), agg.name)
 
     # new interface
 
@@ -310,4 +291,25 @@ VALUES ({in_vals})""".format(
             in_cols=', '.join(key_columns + value_columns.keys()),
             in_vals=', '.join(["tmp.%s" % c for c in key_columns + value_columns.values()])
         )
+        self._execute(sql)
+
+    def purge(self, schema_name, table_name, value_columns, where):
+        sql = "DELETE FROM {schema}.{table} {where} {columns}".format(
+            schema=schema_name,
+            table=table_name,
+            where=self._where(where),
+            columns=' '.join("AND %s IS NULL" % c for c in value_columns)
+        )
+        self._execute(sql)
+
+    def parameters(self, schema_name, table_name, parameter_columns, where):
+        sql = []
+        for col, val in parameter_columns.iteritems():
+            sql.append("UPDATE {schema}.{table} SET {col} = {val} {where} AND ({col} IS NULL OR {col} != {val})".format(
+                schema=schema_name,
+                table=table_name,
+                col=col,
+                val=self.db_str(val),
+                where=self._where(where)
+            ))
         self._execute(sql)

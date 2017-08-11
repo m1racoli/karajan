@@ -32,6 +32,12 @@ class TestBaseEngine(TestCase):
     def test_merge(self):
         self.assertRaises(NotImplementedError, self.engine.merge, 1, 2, 3, 4, 5)
 
+    def test_purge(self):
+        self.assertRaises(NotImplementedError, self.engine.purge, 1, 2, 3, 4)
+
+    def test_parameters(self):
+        self.assertRaises(NotImplementedError, self.engine.parameters, 1, 2, 3, 4)
+
 
 class TestExasolEngine(TestCase):
     def setUp(self):
@@ -126,31 +132,20 @@ WHEN NOT MATCHED THEN
 INSERT (key_col, time_col, val_1, val_2)
 VALUES (tmp.key_col, tmp.time_col, tmp.src_val_1, tmp.src_val_2)""")
 
+    def test_purge(self):
+        self.engine.purge('some_schema', 'some_table', ['col_1', 'col_2'], {'time_col': ('2017-01-31', '2017-02-28'), 'item_col': 'item'})
+        self.engine._execute.assert_called_with("DELETE FROM some_schema.some_table WHERE time_col BETWEEN '2017-01-31' AND '2017-02-28' AND item_col = 'item' AND col_1 IS NULL AND col_2 IS NULL")
+
+    def test_parameters(self):
+        self.engine.parameters('some_schema', 'some_table', {'dcol': datetime(2017, 1, 1), 'ncol': 23, 'scol': 'str', 'bcol': True}, {'time_col': ('2017-01-31', '2017-02-28'), 'item_col': 'item'})
+        self.engine._execute.assert_called_with([
+            "UPDATE some_schema.some_table SET bcol = True WHERE time_col BETWEEN '2017-01-31' AND '2017-02-28' AND item_col = 'item' AND (bcol IS NULL OR bcol != True)",
+            "UPDATE some_schema.some_table SET scol = 'str' WHERE time_col BETWEEN '2017-01-31' AND '2017-02-28' AND item_col = 'item' AND (scol IS NULL OR scol != 'str')",
+            "UPDATE some_schema.some_table SET ncol = 23 WHERE time_col BETWEEN '2017-01-31' AND '2017-02-28' AND item_col = 'item' AND (ncol IS NULL OR ncol != 23)",
+            "UPDATE some_schema.some_table SET dcol = '2017-01-01 00:00:00' WHERE time_col BETWEEN '2017-01-31' AND '2017-02-28' AND item_col = 'item' AND (dcol IS NULL OR dcol != '2017-01-01 00:00:00')",
+        ])
+
     # old tests
-
-    def test_param_column_operator_with_item(self):
-        self.conf.parameterize_context().with_parameter_columns()
-        op = self.build_dags().get_operator('fill_parameter_columns_test_table', 'item')
-        expected = [
-            "UPDATE test_schema.test_table SET datetime_col = '2017-01-01 00:00:00' WHERE (datetime_col IS NULL OR datetime_col != '2017-01-01 00:00:00') AND item_column = 'item'",
-            "UPDATE test_schema.test_table SET number_col = 42 WHERE (number_col IS NULL OR number_col != 42) AND item_column = 'item'",
-            "UPDATE test_schema.test_table SET bool_col = True WHERE (bool_col IS NULL OR bool_col != True) AND item_column = 'item'",
-            "UPDATE test_schema.test_table SET date_col = '2017-01-01' WHERE (date_col IS NULL OR date_col != '2017-01-01') AND item_column = 'item'",
-        ]
-        assert_equal(expected, op.sql)
-        assert_equal(True, op.depends_on_past)
-
-    def test_param_column_operator_without_item(self):
-        self.conf.with_parameter_columns()
-        op = self.build_dags().get_operator('fill_parameter_columns_test_table')
-        expected = [
-            "UPDATE test_schema.test_table SET datetime_col = '2017-01-01 00:00:00' WHERE (datetime_col IS NULL OR datetime_col != '2017-01-01 00:00:00')",
-            "UPDATE test_schema.test_table SET number_col = 42 WHERE (number_col IS NULL OR number_col != 42)",
-            "UPDATE test_schema.test_table SET bool_col = True WHERE (bool_col IS NULL OR bool_col != True)",
-            "UPDATE test_schema.test_table SET date_col = '2017-01-01' WHERE (date_col IS NULL OR date_col != '2017-01-01')",
-        ]
-        assert_equal(expected, op.sql)
-        assert_equal(True, op.depends_on_past)
 
     def test_delta_dep_op(self):
         dep = DeltaDependency({
@@ -197,28 +192,3 @@ VALUES (tmp.key_col, tmp.time_col, tmp.src_val_1, tmp.src_val_2)""")
         except StandardError as e:
             exception = e
         assert_equal(True, isinstance(exception, StandardError))
-
-    def test_purge_operator_without_timeseries(self):
-        op = self.build_dags().get_operator('purge_test_table')
-        assert_equal(isinstance(op, DummyOperator), True)
-
-    def test_purge_operator_with_timeseries(self):
-        self.conf.with_timeseries()
-        op = self.build_dags().get_operator('purge_test_table')
-        # expected = "DELETE FROM test_schema.test_table WHERE timeseries_column = '{{ ds }}' AND test_column = NULL"
-        # assert_str_equal(expected, op.sql)
-        assert_equal(isinstance(op, DummyOperator), True)
-
-    def test_purge_operator_with_timeseries_and_parameterized_context(self):
-        self.conf.with_timeseries().parameterize_context()
-        op = self.build_dags().get_operator('purge_test_table', 'item')
-        # expected = "DELETE FROM test_schema.test_table WHERE timeseries_column = '{{ ds }}' AND item_column = 'item' AND test_column = NULL"
-        # assert_str_equal(expected, op.sql)
-        assert_equal(isinstance(op, DummyOperator), True)
-
-    def test_purge_operator_with_timeseries_and_offset(self):
-        self.conf.with_timeseries().with_offset()
-        op = self.build_dags().get_operator('purge_test_table')
-        # expected = "DELETE FROM test_schema.test_table WHERE timeseries_column = '{{ macros.ds_add(ds, -1) }}' AND test_column = NULL"
-        # assert_str_equal(expected, op.sql)
-        assert_equal(isinstance(op, DummyOperator), True)

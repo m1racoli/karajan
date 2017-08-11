@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 
 EXECUTION_DATE = datetime(2017, 8, 1)
 DATE_RANGE = ('2017-08-01', '2017-08-01')
@@ -10,8 +10,14 @@ TIMESERIES_KEY = 'timeseries_column'
 SRC_COLUMNS = ['another_table_test_src_column', 'test_src_column', 'key_column', 'another_test_src_column',
                'item_column', 'timeseries_column']
 TARGET_VALUE_COLUMNS = ['test_column', 'another_test_column']
+TARGET_ALL_VALUE_COLUMNS = ['another_aggregation_test_column', 'test_column', 'another_test_column']
 MERGE_VALUE_COLUMNS = {'test_column': 'test_src_column', 'another_test_column': 'another_test_src_column'}
 MERGE_UPDATE_TYPES = {'test_column': 'REPLACE', 'another_test_column': 'MAX'}
 DESCRIBE_SRC_COLUMNS = {c: 'SOMETYPE' for c in SRC_COLUMNS}
 DESCRIBE_TARGET_COLUMNS = {'test_column': 'SOMETYPE', 'key_column': 'SOMETYPE', 'another_test_column': 'SOMETYPE',
                            'item_column': 'SOMETYPE', 'timeseries_column': 'SOMETYPE'}
+PARAMETER_COLUMNS = {'date_col': date(2017, 1, 1),
+                     'datetime_col': datetime(2017, 1, 1, 0, 0, 0),
+                     'number_col': 42,
+                     'bool_col': True,
+                     }
