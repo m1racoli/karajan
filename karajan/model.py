@@ -211,3 +211,6 @@ class Aggregation(ModelBase):
 
     def has_dependencies(self):
         return self.dependencies is not None
+
+    def retrospec(self):
+        return self.offset + self.reruns

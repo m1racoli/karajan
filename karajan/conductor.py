@@ -46,16 +46,20 @@ class Conductor(object):
         merge_operators = {}
         dependency_operators = {}
         target_dependencies = {}
-        purge_operators = {}
+        finish_operators = {}
 
         for target in targets:
-            purge_operator = engine.purge_operator(dag, target, item)
-            purge_operators[target.name] = purge_operator
-            purge_operator.set_downstream(done)
-            if target.has_parameter_columns():
-                param_col_op = engine.param_column_op(dag, target, params, item)
-                param_col_op.set_upstream(purge_operator)
-                param_col_op.set_downstream(done)
+            # for the purge operation we need the maximum number of days we will look back = offset + reruns
+            retrospec = max(agg.retrospec() for agg in aggregations if agg.name in target.aggregations)
+            finish_operator = KarajanFinishOperator(
+                engine=engine,
+                dag=dag,
+                params=params,
+                target=target,
+                retrospec=retrospec
+            )
+            finish_operators[target.name] = finish_operator
+            finish_operator.set_downstream(done)
 
         for aggregation in aggregations:
             src_column_names = list({c for t in targets for c in t.src_column_names(aggregation.name)})
@@ -103,7 +107,7 @@ class Conductor(object):
                 merge_operators[(aggregation.name, target.name)] = merge_operator
                 merge_operator.set_upstream(aggregation_operator)
                 merge_operator.set_downstream(clean_operator)
-                merge_operator.set_downstream(purge_operators[target.name])
+                merge_operator.set_downstream(finish_operators[target.name])
 
         for aggregation_id, dependencies in target_dependencies.iteritems():
             aggregation_operator = aggregation_operators[aggregation_id]

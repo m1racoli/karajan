@@ -15,12 +15,15 @@ class KarajanBaseOperator(BaseOperator):
     def tmp_table_name(self, context):
         return "%s_agg_%s_%s" % (context['dag'].dag_id, self.aggregation.name, context['ds_nodash'])
 
-    def set_execution_dates(self, context):
-        # ds = context['ds']
+    def set_execution_dates(self, context, retrospec=None):
         ds = datetime.strptime(context['ds'], "%Y-%m-%d")
-        ds_start = ds if (self.aggregation.reruns + self.aggregation.offset == 0) else ds - timedelta(
-            days=self.aggregation.reruns + self.aggregation.offset)
-        ds_end = ds if self.aggregation.offset == 0 else ds - timedelta(days=self.aggregation.offset)
+        if retrospec is not None:
+            ds_start = ds - timedelta(days=retrospec)
+            ds_end = ds
+        else:
+            ds_start = ds if (self.aggregation.reruns + self.aggregation.offset == 0) else ds - timedelta(
+                days=self.aggregation.reruns + self.aggregation.offset)
+            ds_end = ds if self.aggregation.offset == 0 else ds - timedelta(days=self.aggregation.offset)
         ds_start = ds_start.strftime("%Y-%m-%d")
         ds_end = ds_end.strftime("%Y-%m-%d")
         self.params['start_date'] = ds_start
@@ -111,3 +114,32 @@ class KarajanMergeOperator(KarajanBaseOperator):
             update_types = {ac.name: ac.update_type for ac in
                             self.target.aggregated_columns(self.aggregation.name).values()}
         self.engine.merge(tmp_table_name, schema_name, table_name, self.target.key_columns, value_columns, update_types)
+
+
+class KarajanFinishOperator(KarajanBaseOperator):
+    ui_color = '#c8e29e'
+
+    def __init__(self, target, retrospec, *args, **kwargs):
+        self.target = target
+        self.retrospec = retrospec
+        task_id = "finish_%s" % target.name
+        super(KarajanFinishOperator, self).__init__(*args, task_id=task_id, **kwargs)
+
+    def execute(self, context):
+        schema_name = self.target.schema
+        table_name = self.target.name
+
+        if self.target.is_timeseries():
+            date_range = self.set_execution_dates(context, self.retrospec)
+            where = {self.target.timeseries_key: date_range}
+            if self.params.get('item'):
+                where[self.params.get('item_column')] = self.params.get('item')
+            self.engine.purge(schema_name, table_name, self.target.aggregated_columns().keys(), where)
+
+        if self.target.has_parameter_columns():
+            if self.params.get('item'):
+                where = {self.params.get('item_column'): self.params.get('item')}
+            else:
+                where = None
+            parameter_columns = {c: self.params[p] for c, p in self.target.parameter_columns.iteritems()}
+            self.engine.parameters(schema_name, table_name, parameter_columns, where)
