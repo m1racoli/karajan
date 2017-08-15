@@ -1,47 +1,46 @@
-class ValidationException(Exception):
-    pass
+from karajan.exceptions import KarajanValidationException
 
 
 def validate_presence(val, msg=None):
     if val is None or val == '':
         if not msg:
             msg = "%s not present" % val
-        raise ValidationException(msg)
+        raise KarajanValidationException(msg)
 
 
 def validate_absence(val, msg=None):
     if val is not None and val != '':
         if not msg:
             msg = "%s present" % val
-        raise ValidationException(msg)
+        raise KarajanValidationException(msg)
 
 
 def validate_empty(val, msg=None):
     if not isinstance(val, (list, dict)) or val:
         if not msg:
             msg = "%s not empty" % val
-        raise ValidationException(msg)
+        raise KarajanValidationException(msg)
 
 
 def validate_not_empty(val, msg=None):
     if not isinstance(val, (list, dict)) or not val:
         if not msg:
             msg = "%s empty" % val
-        raise ValidationException(msg)
+        raise KarajanValidationException(msg)
 
 
 def validate_include(items, val, msg=None):
     if not val in items:
         if not msg:
             msg = "%s not in %s" % (val, items)
-        raise ValidationException(msg)
+        raise KarajanValidationException(msg)
 
 
 def validate_exclude(items, val, msg=None):
     if val in items:
         if not msg:
             msg = "%s in %s" % (val, items)
-        raise ValidationException(msg)
+        raise KarajanValidationException(msg)
 
 
 class Validatable:

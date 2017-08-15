@@ -23,7 +23,7 @@ Feature: Parameterization
       | item |
       | g9   |
     When I try to build the DAGs
-    Then there should have been an exception ValidationException
+    Then there should have been an exception KarajanValidationException
     And there should be no DAGs
 
   Scenario: Parameterized context and target with wildcard

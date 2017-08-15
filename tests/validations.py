@@ -10,7 +10,7 @@ def _validate(fun, expected, *args):
     valid = True
     try:
         fun(*args)
-    except ValidationException:
+    except KarajanValidationException:
         valid = False
     assert_equal(valid, expected)
 
@@ -139,7 +139,7 @@ class TestValidatable(TestCase):
         setattr(self.validatable, 'attribute', val)
         try:
             fun('attribute', *args)
-        except ValidationException:
+        except KarajanValidationException:
             valid = False
         assert_equal(valid, expected)
 
@@ -285,7 +285,7 @@ class TestValidatable(TestCase):
         setattr(self.validatable, 'attribute', '')
         try:
             self.validatable.validate_presence('attribute', 'conf_name')
-        except ValidationException as e:
+        except KarajanValidationException as e:
             ex = e
-        assert isinstance(ex, ValidationException)
+        assert isinstance(ex, KarajanValidationException)
         assert_equal(ex.message, 'Validatable: conf_name must be present')
