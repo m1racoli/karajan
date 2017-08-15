@@ -5,9 +5,12 @@ from karajan.config import Config
 
 
 class KarajanBaseOperator(BaseOperator):
-    def __init__(self, engine, *args, **kwargs):
-        self.engine = engine
+    def __init__(self, *args, **kwargs):
         super(KarajanBaseOperator, self).__init__(*args, **kwargs)
+
+    @property
+    def engine(self):
+        return self.dag.engine
 
     def execute(self, context):
         raise NotImplementedError()

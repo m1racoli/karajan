@@ -8,7 +8,7 @@ Feature: Validation
     Given the attribute <attr> for the target test is not set
     When I try to build the DAGs
     Then there should be no DAGs
-    Then there should have been an exception ValidationException
+    Then there should have been an exception KarajanValidationException
 
     Examples:
       | attr               |
@@ -21,7 +21,7 @@ Feature: Validation
     Given the attribute <attr> for the aggregation test is not set
     When I try to build the DAGs
     Then there should be no DAGs
-    Then there should have been an exception ValidationException
+    Then there should have been an exception KarajanValidationException
 
     Examples:
       | attr        |
