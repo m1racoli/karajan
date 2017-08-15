@@ -47,7 +47,7 @@ Feature: Parameterization
     And in the DAG test_g9i aggregate_test should depend on wait_for_test_test
     And in the DAG test_g9 aggregate_test should depend on wait_for_0_seconds_delta
     And in the DAG test_g9i aggregate_test should depend on wait_for_0_seconds_delta
-    And in the DAG test_g9i merge_test_test should depend on aggregate_test
+    And in the DAG test_g9 merge_test_test should depend on aggregate_test
     And in the DAG test_g9i merge_test_test should depend on aggregate_test
     And in the DAG test_g9 purge_test should depend on merge_test_test
     And in the DAG test_g9i purge_test should depend on merge_test_test
