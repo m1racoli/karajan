@@ -224,4 +224,4 @@ class KarajanDAG(DAG):
         self.engine = engine
         self.item = item
         dag_id = "%s_%s" % (karajan_id, item) if item else karajan_id
-        super(KarajanDAG, self).__init__(*args, dag_id=dag_id, **kwargs)
+        super(KarajanDAG, self).__init__(*args, dag_id=dag_id, catchup=False, **kwargs)
