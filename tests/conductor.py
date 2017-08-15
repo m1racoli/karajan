@@ -1,6 +1,5 @@
 from unittest import TestCase
 
-from airflow.exceptions import AirflowException
 from mock import MagicMock
 
 from karajan.conductor import Conductor
@@ -25,13 +24,15 @@ class TestConductor(TestCase):
             'dag': self.dags["%s_%s" % (dag_id, item) if item else dag_id]
         }
 
-    def get_operator(self, task_id, post_fix=None, dag_id='test_dag'):
-        dag = self.dags["%s_%s" % (dag_id, post_fix)] if post_fix else self.dags[dag_id]
-        try:
-            return dag.get_task(task_id)
-        except AirflowException as e:
-            print('%s found in %s' % (dag.task_ids, dag))
-            raise e
+    def get_dag(self, dag_id, item=None):
+        dag_id = "%s_%s" % (dag_id, item) if item else dag_id
+        self.assertIn(dag_id, self.dags)
+        return self.dags[dag_id]
+
+    def get_operator(self, task_id, item=None, dag_id='test_dag'):
+        dag = self.get_dag(dag_id, item)
+        self.assertIn(task_id, dag.task_dict)
+        return dag.get_task(task_id)
 
     def execute(self, task_id, item=None, dag_id='test_dag'):
         op = self.get_operator(task_id, item)
@@ -132,3 +133,64 @@ class TestConductor(TestCase):
             u"SELECT * FROM DUAL WHERE dt BETWEEN '2017-07-28' AND '2017-07-31'",
             None,
         )
+
+    def test_merge_operator_bootstrap(self):
+        self.conf.parameterize_context().with_timeseries()
+        self.engine.describe.return_value = defaults.DESCRIBE_SRC_COLUMNS
+        self.build_dags().execute('merge_test_aggregation_test_table', 'item')
+        self.engine.describe.assert_called_with(defaults.TMP_ITEM_TABLE_NAME)
+        self.engine.bootstrap.assert_called_with(defaults.TARGET_SCHEMA_NAME, defaults.TARGET_NAME,
+                                                 defaults.DESCRIBE_TARGET_COLUMNS)
+
+    def test_merge_operator_delete_existing_data_without_timeseries(self):
+        self.build_dags().execute('merge_test_aggregation_test_table')
+        self.engine.delete_timeseries.assert_not_called()
+
+    def test_merge_operator_delete_existing_data_with_timeseries(self):
+        self.conf.with_timeseries()
+        self.build_dags().execute('merge_test_aggregation_test_table')
+        self.engine.delete_timeseries.assert_called_with(defaults.TARGET_SCHEMA_NAME, defaults.TARGET_NAME,
+                                                         defaults.TARGET_VALUE_COLUMNS,
+                                                         {defaults.TIMESERIES_KEY: defaults.DATE_RANGE})
+
+    def test_merge_operator_delete_existing_data_with_timeseries_parameterization(self):
+        self.conf.with_timeseries().parameterize_context()
+        self.build_dags().execute('merge_test_aggregation_test_table', 'item')
+        self.engine.delete_timeseries.assert_called_with(defaults.TARGET_SCHEMA_NAME, defaults.TARGET_NAME,
+                                                         defaults.TARGET_VALUE_COLUMNS,
+                                                         {defaults.TIMESERIES_KEY: defaults.DATE_RANGE,
+                                                          'item_column': 'item'})
+
+    def test_merge_operator_delete_existing_data_with_timeseries_offsets_and_reruns(self):
+        self.conf.with_timeseries().with_reruns().with_offset()
+        self.build_dags().execute('merge_test_aggregation_test_table')
+        self.engine.delete_timeseries.assert_called_with(defaults.TARGET_SCHEMA_NAME, defaults.TARGET_NAME,
+                                                         defaults.TARGET_VALUE_COLUMNS,
+                                                         {defaults.TIMESERIES_KEY: ('2017-07-28', '2017-07-31')})
+
+    def test_merge_operator_merge(self):
+        self.build_dags().execute('merge_test_aggregation_test_table')
+        self.engine.merge.assert_called_with(defaults.TMP_TABLE_NAME, defaults.TARGET_SCHEMA_NAME, defaults.TARGET_NAME,
+                                             ['key_column'], defaults.MERGE_VALUE_COLUMNS, defaults.MERGE_UPDATE_TYPES)
+
+    def test_merge_operator_merge_with_parametrization(self):
+        self.conf.parameterize_context()
+        self.build_dags().execute('merge_test_aggregation_test_table', 'item')
+        self.engine.merge.assert_called_with(defaults.TMP_ITEM_TABLE_NAME, defaults.TARGET_SCHEMA_NAME,
+                                             defaults.TARGET_NAME, ['key_column', 'item_column'],
+                                             defaults.MERGE_VALUE_COLUMNS, defaults.MERGE_UPDATE_TYPES)
+
+    def test_merge_operator_merge_with_timeseries(self):
+        self.conf.with_timeseries()
+        self.build_dags().execute('merge_test_aggregation_test_table')
+        self.engine.merge.assert_called_with(defaults.TMP_TABLE_NAME, defaults.TARGET_SCHEMA_NAME,
+                                             defaults.TARGET_NAME, ['key_column', 'timeseries_column'],
+                                             defaults.MERGE_VALUE_COLUMNS, None)
+
+    def test_merge_operator_merge_with_timeseries_and_parametrization(self):
+        self.conf.parameterize_context().with_timeseries()
+        self.build_dags().execute('merge_test_aggregation_test_table', 'item')
+        self.engine.merge.assert_called_with(defaults.TMP_ITEM_TABLE_NAME, defaults.TARGET_SCHEMA_NAME,
+                                             defaults.TARGET_NAME,
+                                             ['key_column', 'timeseries_column', 'item_column'],
+                                             defaults.MERGE_VALUE_COLUMNS, None)
