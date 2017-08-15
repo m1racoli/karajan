@@ -19,14 +19,23 @@ class KarajanBaseOperator(BaseOperator):
         return "%s_agg_%s_%s" % (context['dag'].dag_id, self.aggregation.name, context['ds_nodash'])
 
     def set_execution_dates(self, context, retrospec=None):
-        ds = datetime.strptime(context['ds'], "%Y-%m-%d")
-        if retrospec is not None:
-            ds_start = ds - timedelta(days=retrospec)
-            ds_end = ds
+        dag_run = context['dag_run']
+        conf = dag_run.conf
+        if dag_run.external_trigger:
+            conf = dag_run.conf
+            ds_start = conf['start_date']
+            ds_end = conf['end_date']
         else:
-            ds_start = ds if (self.aggregation.reruns + self.aggregation.offset == 0) else ds - timedelta(
+            ds_start = datetime.strptime(context['ds'], "%Y-%m-%d")
+            ds_end = datetime.strptime(context['ds'], "%Y-%m-%d")
+
+        if retrospec is not None:
+            ds_start = ds_start - timedelta(days=retrospec)
+            ds_end = ds_end
+        else:
+            ds_start = ds_start if (self.aggregation.reruns + self.aggregation.offset == 0) else ds_start - timedelta(
                 days=self.aggregation.reruns + self.aggregation.offset)
-            ds_end = ds if self.aggregation.offset == 0 else ds - timedelta(days=self.aggregation.offset)
+            ds_end = ds_end if self.aggregation.offset == 0 else ds_end - timedelta(days=self.aggregation.offset)
         ds_start = ds_start.strftime("%Y-%m-%d")
         ds_end = ds_end.strftime("%Y-%m-%d")
         self.params['start_date'] = ds_start
