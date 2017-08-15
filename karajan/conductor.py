@@ -3,7 +3,7 @@ from airflow.operators.dummy_operator import DummyOperator
 
 from karajan.dependencies import NothingDependency, get_dependency, TargetDependency
 from karajan.engines import BaseEngine
-from karajan.model import Target, Aggregation, Context
+from karajan.model import Target, Aggregation, Context, KarajanDAG
 from karajan.operators import *
 
 
@@ -25,22 +25,21 @@ class Conductor(object):
         dags = {}
 
         for item, params in self.context.params().iteritems():
-            item_dag_id = "%s_%s" % (dag_id, item) if item else dag_id
             item_start_date = min(t.start_date for t in self.targets.values() if t.has_item(item))
-            dag = DAG(dag_id=item_dag_id, start_date=item_start_date)
-            self._build_subdag(item, params, engine, dag)
-            dags[item_dag_id] = dag
+            dag = KarajanDAG(dag_id, engine, item, start_date=item_start_date)
+            self._build_subdag(params, dag)
+            dags[dag.dag_id] = dag
 
         if output is not None:
             output.update(dags)
 
         return dags
 
-    def _build_subdag(self, item, params, engine, dag):
+    def _build_subdag(self, params, dag):
         init = DummyOperator(task_id='init', dag=dag)
         done = DummyOperator(task_id='done', dag=dag)
 
-        targets = [t for t in self.targets.values() if t.has_item(item)]
+        targets = [t for t in self.targets.values() if t.has_item(dag.item)]
         aggregations = [self.aggregations[a] for a in {a for t in targets for a in t.aggregations}]
         aggregation_operators = {}
         merge_operators = {}
@@ -52,7 +51,6 @@ class Conductor(object):
             # for the purge operation we need the maximum number of days we will look back = offset + reruns
             retrospec = max(agg.retrospec() for agg in aggregations if agg.name in target.aggregations)
             finish_operator = KarajanFinishOperator(
-                engine=engine,
                 dag=dag,
                 params=params,
                 target=target,
@@ -64,7 +62,6 @@ class Conductor(object):
         for aggregation in aggregations:
             src_column_names = list({c for t in targets for c in t.src_column_names(aggregation.name)})
             aggregation_operator = KarajanAggregateOperator(
-                engine=engine,
                 aggregation=aggregation,
                 columns=src_column_names,
                 params=params,
@@ -80,13 +77,12 @@ class Conductor(object):
                     continue
                 dep_id = dependency.id()
                 if dep_id not in dependency_operators:
-                    dependency_operator = engine.dependency_operator(dep_id, dag, dependency)
+                    dependency_operator = dag.engine.dependency_operator(dep_id, dag, dependency)
                     dependency_operators[dep_id] = dependency_operator
                     dependency_operator.set_upstream(init)
                 aggregation_operator.set_upstream(dependency_operators[dep_id])
 
             clean_operator = KarajanCleanupOperator(
-                engine=engine,
                 aggregation=aggregation,
                 params=params,
                 dag=dag
@@ -98,7 +94,6 @@ class Conductor(object):
                     continue
 
                 merge_operator = KarajanMergeOperator(
-                    engine=engine,
                     aggregation=aggregation,
                     target=target,
                     params=params,
@@ -113,7 +108,7 @@ class Conductor(object):
             aggregation_operator = aggregation_operators[aggregation_id]
             for target_dependency in dependencies:
                 target = self.targets[target_dependency.target]
-                if not target.has_item(item):
+                if not target.has_item(dag.item):
                     # nothing to wait for for this item
                     continue
                 for agg_id in target.aggregations_for_columns(target_dependency.columns):

@@ -1,6 +1,8 @@
 import re
 from datetime import datetime, date
 
+from airflow.models import DAG
+
 from validations import *
 
 
@@ -214,3 +216,12 @@ class Aggregation(ModelBase):
 
     def retrospec(self):
         return self.offset + self.reruns
+
+
+class KarajanDAG(DAG):
+    def __init__(self, karajan_id, engine, item, *args, **kwargs):
+        self.karajan_id = karajan_id
+        self.engine = engine
+        self.item = item
+        dag_id = "%s_%s" % (karajan_id, item) if item else karajan_id
+        super(KarajanDAG, self).__init__(*args, dag_id=dag_id, **kwargs)
