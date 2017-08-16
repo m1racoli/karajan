@@ -109,7 +109,7 @@ class TestExasolEngine(TestCase):
         ('REPLACE', "IFNULL(tmp.src_val, tbl.val)"),
     ])
     def test_merge_without_timeseries(self, update_type, stm):
-        self.engine.merge('some_tmp_table', 'some_schema', 'some_table', ['key_col'], {'val': 'src_val'}, {'val': update_type})
+        self.engine.merge('some_tmp_table', 'some_schema', 'some_table', {'key_col': 'key_col'}, {'val': 'src_val'}, {'val': update_type})
         self.engine._execute.assert_called_with("""MERGE INTO some_schema.some_table tbl
 USING (SELECT key_col, src_val FROM tmp_schema.some_tmp_table) tmp
 ON tbl.key_col = tmp.key_col
@@ -121,16 +121,16 @@ INSERT (key_col, val)
 VALUES (tmp.key_col, tmp.src_val)""" % stm)
 
     def test_merge_with_timeseries(self):
-        self.engine.merge('some_tmp_table', 'some_schema', 'some_table', ['key_col', 'time_col'], {'val_1': 'src_val_1', 'val_2': 'src_val_2'})
+        self.engine.merge('some_tmp_table', 'some_schema', 'some_table', {'key_col': 'tmp_key_col', 'time_col': 'tmp_time_col'}, {'val_1': 'src_val_1', 'val_2': 'src_val_2'})
         self.engine._execute.assert_called_with("""MERGE INTO some_schema.some_table tbl
-USING (SELECT key_col, time_col, src_val_1, src_val_2 FROM tmp_schema.some_tmp_table) tmp
-ON tbl.key_col = tmp.key_col AND tbl.time_col = tmp.time_col
+USING (SELECT tmp_time_col, tmp_key_col, src_val_1, src_val_2 FROM tmp_schema.some_tmp_table) tmp
+ON tbl.time_col = tmp.tmp_time_col AND tbl.key_col = tmp.tmp_key_col
 WHEN MATCHED THEN
 UPDATE SET
 tbl.val_1 = tmp.src_val_1, tbl.val_2 = tmp.src_val_2
 WHEN NOT MATCHED THEN
-INSERT (key_col, time_col, val_1, val_2)
-VALUES (tmp.key_col, tmp.time_col, tmp.src_val_1, tmp.src_val_2)""")
+INSERT (time_col, key_col, val_1, val_2)
+VALUES (tmp.tmp_time_col, tmp.tmp_key_col, tmp.src_val_1, tmp.src_val_2)""")
 
     def test_purge(self):
         self.engine.purge('some_schema', 'some_table', ['col_1', 'col_2'], {'time_col': ('2017-01-31', '2017-02-28'), 'item_col': 'item'})

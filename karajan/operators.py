@@ -104,6 +104,8 @@ class KarajanMergeOperator(KarajanBaseOperator):
                    self.target.aggregated_columns(self.aggregation.name).values()}
         for kc in self.target.key_columns:
             columns[kc] = src_columns[kc]
+        if self.target.is_timeseries():
+            columns[self.target.timeseries_key] = src_columns[self.aggregation.time_key]
         # bootstrap table and columns
         self.engine.bootstrap(schema_name, table_name, columns)
 
@@ -120,12 +122,15 @@ class KarajanMergeOperator(KarajanBaseOperator):
         # merge
         value_columns = {ac.name: ac.src_column_name for ac in
                          self.target.aggregated_columns(self.aggregation.name).values()}
+        key_columns = {k: k for k in self.target.key_columns}
         if self.target.is_timeseries():
+            key_columns[self.target.timeseries_key] = self.aggregation.time_key
             update_types = None
         else:
             update_types = {ac.name: ac.update_type for ac in
                             self.target.aggregated_columns(self.aggregation.name).values()}
-        self.engine.merge(tmp_table_name, schema_name, table_name, self.target.key_columns, value_columns, update_types)
+
+        self.engine.merge(tmp_table_name, schema_name, table_name, key_columns, value_columns, update_types)
 
 
 class KarajanFinishOperator(KarajanBaseOperator):

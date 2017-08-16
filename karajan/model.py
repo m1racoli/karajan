@@ -100,7 +100,7 @@ class Target(ModelBase):
         else:
             self.validate_empty('items')
         if self.timeseries_key:
-            self.validate_in('timeseries_key', self.key_columns)
+            self.validate_not_in('timeseries_key', self.key_columns)
         for item_key in self.parameter_columns.values():
             validate_include(self.context.item_keys(), item_key)
 
@@ -190,10 +190,12 @@ class Aggregation(ModelBase):
         self.offset = conf.get('offset', 0)
         self.reruns = conf.get('reruns', 0)
         self.parameterize = self._check_parameterize()
+        self.time_key = conf.get('time_key')
         super(Aggregation, self).__init__(name)
 
     def validate(self):
         self.validate_presence('query')
+        self.validate_presence('time_key')
         super(Aggregation, self).validate()
 
     def _check_parameterize(self):

@@ -24,5 +24,6 @@ Feature: Validation
     Then there should have been an exception KarajanValidationException
 
     Examples:
-      | attr        |
-      | query       |
+      | attr     |
+      | query    |
+      | time_key |

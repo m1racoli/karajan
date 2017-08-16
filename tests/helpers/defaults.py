@@ -13,7 +13,7 @@ TARGET_NAME = 'test_table'
 TARGET_SCHEMA_NAME = 'test_schema'
 TIMESERIES_KEY = 'timeseries_column'
 SRC_COLUMNS = ['another_table_test_src_column', 'test_src_column', 'key_column', 'another_test_src_column',
-               'item_column', 'timeseries_column']
+               'item_column', 'test_time_key']
 TARGET_VALUE_COLUMNS = ['test_column', 'another_test_column']
 TARGET_ALL_VALUE_COLUMNS = ['another_aggregation_test_column', 'test_column', 'another_test_column']
 MERGE_VALUE_COLUMNS = {'test_column': 'test_src_column', 'another_test_column': 'another_test_src_column'}

@@ -283,13 +283,13 @@ INSERT ({in_cols})
 VALUES ({in_vals})""".format(
             schema=schema_name,
             table=table_name,
-            src_cols=', '.join(key_columns + value_columns.values()),
+            src_cols=', '.join(key_columns.values() + value_columns.values()),
             tmp_schema=self.tmp_schema,
             tmp_table=tmp_table_name,
-            on_cols=' AND '.join(["tbl.%s = tmp.%s" % (c, c) for c in key_columns]),
+            on_cols=' AND '.join(["tbl.%s = tmp.%s" % (t, s) for t, s in key_columns.iteritems()]),
             set_cols=set_cols,
-            in_cols=', '.join(key_columns + value_columns.keys()),
-            in_vals=', '.join(["tmp.%s" % c for c in key_columns + value_columns.values()])
+            in_cols=', '.join(key_columns.keys() + value_columns.keys()),
+            in_vals=', '.join(["tmp.%s" % c for c in key_columns.values() + value_columns.values()])
         )
         self._execute(sql)
 
