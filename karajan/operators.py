@@ -30,11 +30,9 @@ class KarajanBaseOperator(BaseOperator):
 
         if retrospec is not None:
             ds_start = ds_start - timedelta(days=retrospec)
-            ds_end = ds_end
         else:
-            ds_start = ds_start if (self.aggregation.reruns + self.aggregation.offset == 0) else ds_start - timedelta(
-                days=self.aggregation.reruns + self.aggregation.offset)
-            ds_end = ds_end if self.aggregation.offset == 0 else ds_end - timedelta(days=self.aggregation.offset)
+            ds_start = ds_start - timedelta(days=self.aggregation.reruns + self.aggregation.offset)
+            ds_end = ds_end - timedelta(days=self.aggregation.offset)
         self.params['start_date'] = ds_start.strftime("%Y-%m-%d")
         self.params['end_date'] = ds_end.strftime("%Y-%m-%d")
         return self.params['start_date'], self.params['end_date']
