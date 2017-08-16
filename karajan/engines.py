@@ -161,6 +161,13 @@ class ExasolEngine(BaseEngine):
             return val
 
     @staticmethod
+    def col_escape(col):
+        if col.startswith('_'):
+            return '"%s"' % col
+        else:
+            return col
+
+    @staticmethod
     def _where(d):
         if not d:
             return ''
@@ -225,7 +232,7 @@ class ExasolEngine(BaseEngine):
             ddl = "CREATE TABLE {schema}.{table} ({col_defs})".format(
                 table=table_name.upper(),
                 schema=schema_name.upper(),
-                col_defs=', '.join("%s %s DEFAULT NULL" % (c.upper(), t) for c, t in columns.iteritems())
+                col_defs=', '.join("%s %s DEFAULT NULL" % (self.col_escape(c.upper()), t) for c, t in columns.iteritems())
             )
             self._execute(ddl)
         else:
@@ -236,7 +243,7 @@ class ExasolEngine(BaseEngine):
                     ddl.append("ALTER TABLE {schema}.{table} ADD COLUMN {col} {ctype} DEFAULT NULL".format(
                         schema=schema_name.upper(),
                         table=table_name.upper(),
-                        col=column.upper(),
+                        col=self.col_escape(column.upper()),
                         ctype=columns[column],
                     ))
             if ddl:

@@ -79,21 +79,24 @@ class TestExasolEngine(TestCase):
 
     def test_bootstrap_table_missing(self):
         self.engine._select.return_value = []
-        self.engine.bootstrap('some_schema','some_table', {'key_column': 'VARCHAR(20) UTF8', 'timeseries_column': 'DATE'})
+        self.engine.bootstrap('some_schema','some_table', {'key_column': 'VARCHAR(20) UTF8', 'timeseries_column': 'DATE', '_meta_column': 'DATE'})
         self.engine._select.assert_called_with(
             "SELECT COLUMN_NAME, COLUMN_TYPE FROM EXA_ALL_COLUMNS WHERE COLUMN_TABLE = 'SOME_TABLE' AND COLUMN_SCHEMA = 'SOME_SCHEMA'")
-        self.engine._execute.assert_called_with("CREATE TABLE SOME_SCHEMA.SOME_TABLE (TIMESERIES_COLUMN DATE DEFAULT NULL, KEY_COLUMN VARCHAR(20) UTF8 DEFAULT NULL)")
+        self.engine._execute.assert_called_with("""CREATE TABLE SOME_SCHEMA.SOME_TABLE (TIMESERIES_COLUMN DATE DEFAULT NULL, "_META_COLUMN" DATE DEFAULT NULL, KEY_COLUMN VARCHAR(20) UTF8 DEFAULT NULL)""")
 
     def test_bootstrap_column_missing(self):
         self.engine._select.return_value = [['KEY_COLUMN', 'VARCHAR(20) UTF8']]
-        self.engine.bootstrap('some_schema','some_table', {'key_column': 'VARCHAR(20) UTF8', 'timeseries_column': 'DATE'})
+        self.engine.bootstrap('some_schema','some_table', {'key_column': 'VARCHAR(20) UTF8', 'timeseries_column': 'DATE', '_meta_column': 'DATE'})
         self.engine._select.assert_called_with(
             "SELECT COLUMN_NAME, COLUMN_TYPE FROM EXA_ALL_COLUMNS WHERE COLUMN_TABLE = 'SOME_TABLE' AND COLUMN_SCHEMA = 'SOME_SCHEMA'")
-        self.engine._execute.assert_called_with(["ALTER TABLE SOME_SCHEMA.SOME_TABLE ADD COLUMN TIMESERIES_COLUMN DATE DEFAULT NULL"])
+        self.engine._execute.assert_called_with([
+            "ALTER TABLE SOME_SCHEMA.SOME_TABLE ADD COLUMN TIMESERIES_COLUMN DATE DEFAULT NULL",
+            """ALTER TABLE SOME_SCHEMA.SOME_TABLE ADD COLUMN "_META_COLUMN" DATE DEFAULT NULL""",
+        ])
 
     def test_bootstrap_nothing_missing(self):
-        self.engine._select.return_value = [['KEY_COLUMN', 'VARCHAR(20) UTF8'], ['TIMESERIES_COLUMN', 'DATE']]
-        self.engine.bootstrap('some_schema','some_table', {'key_column': 'VARCHAR(20) UTF8', 'timeseries_column': 'DATE'})
+        self.engine._select.return_value = [['KEY_COLUMN', 'VARCHAR(20) UTF8'], ['TIMESERIES_COLUMN', 'DATE'], ['_META_COLUMN', 'DATE']]
+        self.engine.bootstrap('some_schema','some_table', {'key_column': 'VARCHAR(20) UTF8', 'timeseries_column': 'DATE', '_meta_column': 'DATE'})
         self.engine._select.assert_called_with(
             "SELECT COLUMN_NAME, COLUMN_TYPE FROM EXA_ALL_COLUMNS WHERE COLUMN_TABLE = 'SOME_TABLE' AND COLUMN_SCHEMA = 'SOME_SCHEMA'")
         self.engine._execute.assert_not_called()

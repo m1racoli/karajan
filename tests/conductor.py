@@ -173,6 +173,14 @@ class TestConductor(TestCase):
         )
 
     def test_merge_operator_bootstrap(self):
+        self.conf.parameterize_context()
+        self.engine.describe.return_value = defaults.DESCRIBE_SRC_COLUMNS
+        self.build_dags().execute('merge_test_aggregation_test_table', 'item')
+        self.engine.describe.assert_called_with(defaults.TMP_ITEM_TABLE_NAME)
+        self.engine.bootstrap.assert_called_with(defaults.TARGET_SCHEMA_NAME, defaults.TARGET_NAME,
+                                                 defaults.DESCRIBE_TARGET_COLUMNS_WITH_META)
+
+    def test_merge_operator_bootstrap_with_timeseries(self):
         self.conf.parameterize_context().with_timeseries()
         self.engine.describe.return_value = defaults.DESCRIBE_SRC_COLUMNS
         self.build_dags().execute('merge_test_aggregation_test_table', 'item')

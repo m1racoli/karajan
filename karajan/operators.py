@@ -106,6 +106,11 @@ class KarajanMergeOperator(KarajanBaseOperator):
             columns[kc] = src_columns[kc]
         if self.target.is_timeseries():
             columns[self.target.timeseries_key] = src_columns[self.aggregation.time_key]
+        else:
+            for ac in self.target.aggregated_columns(self.aggregation.name).values():
+                if ac.depends_on_past():
+                    columns['_%s_updated_at' % ac.name] = 'DATE'
+
         # bootstrap table and columns
         self.engine.bootstrap(schema_name, table_name, columns)
 
