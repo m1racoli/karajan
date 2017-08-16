@@ -20,7 +20,6 @@ class KarajanBaseOperator(BaseOperator):
 
     def set_execution_dates(self, context, retrospec=None):
         dag_run = context['dag_run']
-        conf = dag_run.conf
         if dag_run.external_trigger:
             conf = dag_run.conf
             ds_start = conf['start_date']
