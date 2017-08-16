@@ -25,6 +25,7 @@ class TestConductor(TestCase):
             run_id="karajan_run_%s" % datetime.now(),
             external_trigger=external_trigger,
             conf={'start_date': defaults.EXTERNAL_START_DATE, 'end_date': defaults.EXTERNAL_END_DATE} if external_trigger else {},
+            execution_date=defaults.EXTERNAL_EXECUTION_DATE if external_trigger else datetime.now(),
             state='running'
         )
 
@@ -57,11 +58,17 @@ class TestConductor(TestCase):
             defaults.TMP_TABLE_NAME,
         )
 
-    def test_cleanup_operator_with_params(self):
+    def test_cleanup_operator_with_parametrization(self):
         self.conf.parameterize_context()
         self.build_dags().execute('cleanup_test_aggregation', 'item')
         self.engine.cleanup.assert_called_with(
             defaults.TMP_ITEM_TABLE_NAME,
+        )
+
+    def test_cleanup_operator_with_external_trigger(self):
+        self.build_dags().execute('cleanup_test_aggregation', external_trigger=True)
+        self.engine.cleanup.assert_called_with(
+            defaults.EXTERNAL_TMP_TABLE_NAME,
         )
 
     def test_aggregation_operator_without_parameterization(self):
@@ -149,7 +156,7 @@ class TestConductor(TestCase):
     def test_aggregation_operator_with_external_trigger(self):
         self.build_dags().execute('aggregate_test_aggregation', external_trigger=True)
         self.engine.aggregate.assert_called_with(
-            defaults.TMP_TABLE_NAME,
+            defaults.EXTERNAL_TMP_TABLE_NAME,
             ['another_table_test_src_column', 'test_src_column', 'key_column', 'another_test_src_column'],
             u"SELECT * FROM DUAL WHERE dt BETWEEN '2016-08-01' AND '2016-09-01'",
             None,
@@ -159,7 +166,7 @@ class TestConductor(TestCase):
         self.conf.with_offset().with_reruns()
         self.build_dags().execute('aggregate_test_aggregation', external_trigger=True)
         self.engine.aggregate.assert_called_with(
-            defaults.TMP_TABLE_NAME,
+            defaults.EXTERNAL_TMP_TABLE_NAME,
             ['another_table_test_src_column', 'test_src_column', 'key_column', 'another_test_src_column'],
             u"SELECT * FROM DUAL WHERE dt BETWEEN '2016-07-28' AND '2016-08-31'",
             None,
@@ -239,6 +246,11 @@ class TestConductor(TestCase):
                                              defaults.TARGET_NAME,
                                              ['key_column', 'timeseries_column', 'item_column'],
                                              defaults.MERGE_VALUE_COLUMNS, None)
+
+    def test_merge_operator_merge_with_external_trigger(self):
+        self.build_dags().execute('merge_test_aggregation_test_table', external_trigger=True)
+        self.engine.merge.assert_called_with(defaults.EXTERNAL_TMP_TABLE_NAME, defaults.TARGET_SCHEMA_NAME, defaults.TARGET_NAME,
+                                             ['key_column'], defaults.MERGE_VALUE_COLUMNS, defaults.MERGE_UPDATE_TYPES)
 
     def test_finish_operator_purge_without_timeseries(self):
         self.build_dags().execute('finish_test_table')

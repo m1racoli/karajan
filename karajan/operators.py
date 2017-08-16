@@ -16,7 +16,12 @@ class KarajanBaseOperator(BaseOperator):
         raise NotImplementedError()
 
     def tmp_table_name(self, context):
-        return "%s_agg_%s_%s" % (context['dag'].dag_id, self.aggregation.name, context['ds_nodash'])
+        dag_run = context['dag_run']
+        if dag_run.external_trigger:
+            execution_date = dag_run.execution_date.strftime("%Y%m%dT%H%M%S")
+        else:
+            execution_date = context['ds_nodash']
+        return "%s_agg_%s_%s" % (context['dag'].dag_id, self.aggregation.name, execution_date)
 
     def set_execution_dates(self, context, retrospec=None):
         dag_run = context['dag_run']
