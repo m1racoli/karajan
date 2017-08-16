@@ -16,22 +16,31 @@ class KarajanBaseOperator(BaseOperator):
         raise NotImplementedError()
 
     def tmp_table_name(self, context):
-        return "%s_agg_%s_%s" % (context['dag'].dag_id, self.aggregation.name, context['ds_nodash'])
+        dag_run = context['dag_run']
+        if dag_run.external_trigger:
+            execution_date = dag_run.execution_date.strftime("%Y%m%dT%H%M%S")
+        else:
+            execution_date = context['ds_nodash']
+        return "%s_agg_%s_%s" % (context['dag'].dag_id, self.aggregation.name, execution_date)
 
     def set_execution_dates(self, context, retrospec=None):
-        ds = datetime.strptime(context['ds'], "%Y-%m-%d")
-        if retrospec is not None:
-            ds_start = ds - timedelta(days=retrospec)
-            ds_end = ds
+        dag_run = context['dag_run']
+        if dag_run.external_trigger:
+            conf = dag_run.conf
+            ds_start = conf['start_date']
+            ds_end = conf['end_date']
         else:
-            ds_start = ds if (self.aggregation.reruns + self.aggregation.offset == 0) else ds - timedelta(
-                days=self.aggregation.reruns + self.aggregation.offset)
-            ds_end = ds if self.aggregation.offset == 0 else ds - timedelta(days=self.aggregation.offset)
-        ds_start = ds_start.strftime("%Y-%m-%d")
-        ds_end = ds_end.strftime("%Y-%m-%d")
-        self.params['start_date'] = ds_start
-        self.params['end_date'] = ds_end
-        return ds_start, ds_end
+            ds_start = datetime.strptime(context['ds'], "%Y-%m-%d")
+            ds_end = datetime.strptime(context['ds'], "%Y-%m-%d")
+
+        if retrospec is not None:
+            ds_start = ds_start - timedelta(days=retrospec)
+        else:
+            ds_start = ds_start - timedelta(days=self.aggregation.reruns + self.aggregation.offset)
+            ds_end = ds_end - timedelta(days=self.aggregation.offset)
+        self.params['start_date'] = ds_start.strftime("%Y-%m-%d")
+        self.params['end_date'] = ds_end.strftime("%Y-%m-%d")
+        return self.params['start_date'], self.params['end_date']
 
 
 class KarajanAggregateOperator(KarajanBaseOperator):

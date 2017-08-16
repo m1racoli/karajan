@@ -1,5 +1,7 @@
+from datetime import datetime
 from unittest import TestCase
 
+from airflow.models import DagRun
 from mock import MagicMock
 
 from karajan.conductor import Conductor
@@ -17,8 +19,19 @@ class TestConductor(TestCase):
         Conductor(self.conf).build('test_dag', engine=self.engine, output=self.dags)
         return self
 
-    def context(self, dag_id, item=None, ds=defaults.EXECUTION_DATE):
+    def dag_run(self, dag_id, external_trigger=False):
+        return DagRun(
+            dag_id=dag_id,
+            run_id="karajan_run_%s" % datetime.now(),
+            external_trigger=external_trigger,
+            conf={'start_date': defaults.EXTERNAL_START_DATE, 'end_date': defaults.EXTERNAL_END_DATE} if external_trigger else {},
+            execution_date=defaults.EXTERNAL_EXECUTION_DATE if external_trigger else datetime.now(),
+            state='running'
+        )
+
+    def context(self, dag_id, item=None, ds=defaults.EXECUTION_DATE, external_trigger=False):
         return {
+            'dag_run': self.dag_run(dag_id, external_trigger),
             'ds': ds.strftime("%Y-%m-%d"),
             'ds_nodash': ds.strftime("%Y%m%d"),
             'dag': self.dags["%s_%s" % (dag_id, item) if item else dag_id]
@@ -34,9 +47,9 @@ class TestConductor(TestCase):
         self.assertIn(task_id, dag.task_dict)
         return dag.get_task(task_id)
 
-    def execute(self, task_id, item=None, dag_id='test_dag'):
+    def execute(self, task_id, item=None, dag_id='test_dag', external_trigger=False):
         op = self.get_operator(task_id, item)
-        op.execute(self.context(dag_id, item))
+        op.execute(self.context(dag_id, item, external_trigger=external_trigger))
         return self
 
     def test_cleanup_operator(self):
@@ -45,11 +58,17 @@ class TestConductor(TestCase):
             defaults.TMP_TABLE_NAME,
         )
 
-    def test_cleanup_operator_with_params(self):
+    def test_cleanup_operator_with_parametrization(self):
         self.conf.parameterize_context()
         self.build_dags().execute('cleanup_test_aggregation', 'item')
         self.engine.cleanup.assert_called_with(
             defaults.TMP_ITEM_TABLE_NAME,
+        )
+
+    def test_cleanup_operator_with_external_trigger(self):
+        self.build_dags().execute('cleanup_test_aggregation', external_trigger=True)
+        self.engine.cleanup.assert_called_with(
+            defaults.EXTERNAL_TMP_TABLE_NAME,
         )
 
     def test_aggregation_operator_without_parameterization(self):
@@ -134,6 +153,25 @@ class TestConductor(TestCase):
             None,
         )
 
+    def test_aggregation_operator_with_external_trigger(self):
+        self.build_dags().execute('aggregate_test_aggregation', external_trigger=True)
+        self.engine.aggregate.assert_called_with(
+            defaults.EXTERNAL_TMP_TABLE_NAME,
+            ['another_table_test_src_column', 'test_src_column', 'key_column', 'another_test_src_column'],
+            u"SELECT * FROM DUAL WHERE dt BETWEEN '2016-08-01' AND '2016-09-01'",
+            None,
+        )
+
+    def test_aggregation_operator_with_external_trigger_reruns_and_offset(self):
+        self.conf.with_offset().with_reruns()
+        self.build_dags().execute('aggregate_test_aggregation', external_trigger=True)
+        self.engine.aggregate.assert_called_with(
+            defaults.EXTERNAL_TMP_TABLE_NAME,
+            ['another_table_test_src_column', 'test_src_column', 'key_column', 'another_test_src_column'],
+            u"SELECT * FROM DUAL WHERE dt BETWEEN '2016-07-28' AND '2016-08-31'",
+            None,
+        )
+
     def test_merge_operator_bootstrap(self):
         self.conf.parameterize_context().with_timeseries()
         self.engine.describe.return_value = defaults.DESCRIBE_SRC_COLUMNS
@@ -168,6 +206,20 @@ class TestConductor(TestCase):
                                                          defaults.TARGET_VALUE_COLUMNS,
                                                          {defaults.TIMESERIES_KEY: ('2017-07-28', '2017-07-31')})
 
+    def test_merge_operator_delete_existing_data_with_timeseries_and_external_trigger(self):
+        self.conf.with_timeseries()
+        self.build_dags().execute('merge_test_aggregation_test_table', external_trigger=True)
+        self.engine.delete_timeseries.assert_called_with(defaults.TARGET_SCHEMA_NAME, defaults.TARGET_NAME,
+                                                         defaults.TARGET_VALUE_COLUMNS,
+                                                         {defaults.TIMESERIES_KEY: defaults.EXTERNAL_DATE_RANGE})
+
+    def test_merge_operator_delete_existing_data_with_timeseries_offsets_reruns_and_external_trigger(self):
+        self.conf.with_timeseries().with_reruns().with_offset()
+        self.build_dags().execute('merge_test_aggregation_test_table', external_trigger=True)
+        self.engine.delete_timeseries.assert_called_with(defaults.TARGET_SCHEMA_NAME, defaults.TARGET_NAME,
+                                                         defaults.TARGET_VALUE_COLUMNS,
+                                                         {defaults.TIMESERIES_KEY: ('2016-07-28', '2016-08-31')})
+
     def test_merge_operator_merge(self):
         self.build_dags().execute('merge_test_aggregation_test_table')
         self.engine.merge.assert_called_with(defaults.TMP_TABLE_NAME, defaults.TARGET_SCHEMA_NAME, defaults.TARGET_NAME,
@@ -195,6 +247,11 @@ class TestConductor(TestCase):
                                              ['key_column', 'timeseries_column', 'item_column'],
                                              defaults.MERGE_VALUE_COLUMNS, None)
 
+    def test_merge_operator_merge_with_external_trigger(self):
+        self.build_dags().execute('merge_test_aggregation_test_table', external_trigger=True)
+        self.engine.merge.assert_called_with(defaults.EXTERNAL_TMP_TABLE_NAME, defaults.TARGET_SCHEMA_NAME, defaults.TARGET_NAME,
+                                             ['key_column'], defaults.MERGE_VALUE_COLUMNS, defaults.MERGE_UPDATE_TYPES)
+
     def test_finish_operator_purge_without_timeseries(self):
         self.build_dags().execute('finish_test_table')
         self.engine.purge.assert_not_called()
@@ -219,6 +276,20 @@ class TestConductor(TestCase):
         self.engine.purge.assert_called_with(defaults.TARGET_SCHEMA_NAME, defaults.TARGET_NAME,
                                              defaults.TARGET_ALL_VALUE_COLUMNS,
                                              {defaults.TIMESERIES_KEY: ('2017-07-28', '2017-08-01')})
+
+    def test_finish_operator_purge_with_timeseries_and_external_trigger(self):
+        self.conf.with_timeseries()
+        self.build_dags().execute('finish_test_table', external_trigger=True)
+        self.engine.purge.assert_called_with(defaults.TARGET_SCHEMA_NAME, defaults.TARGET_NAME,
+                                             defaults.TARGET_ALL_VALUE_COLUMNS,
+                                             {defaults.TIMESERIES_KEY: defaults.EXTERNAL_DATE_RANGE})
+
+    def test_finish_operator_purge_with_timeseries_reruns_offsets_and_external_trigger(self):
+        self.conf.with_timeseries().with_offset().with_reruns()
+        self.build_dags().execute('finish_test_table', external_trigger=True)
+        self.engine.purge.assert_called_with(defaults.TARGET_SCHEMA_NAME, defaults.TARGET_NAME,
+                                             defaults.TARGET_ALL_VALUE_COLUMNS,
+                                             {defaults.TIMESERIES_KEY: ('2016-07-28', '2016-09-01')})
 
     def test_finish_operator_parameters_without_parameter_columns(self):
         self.build_dags().execute('finish_test_table')
