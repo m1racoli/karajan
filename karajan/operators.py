@@ -1,3 +1,4 @@
+import logging
 from airflow.models import BaseOperator
 from datetime import datetime, timedelta
 
@@ -43,6 +44,20 @@ class KarajanBaseOperator(BaseOperator):
         self.params['start_date'] = ds_start.strftime("%Y-%m-%d")
         self.params['end_date'] = ds_end.strftime("%Y-%m-%d")
         return self.params['start_date'], self.params['end_date']
+
+
+class KarajanDependencyOperator(KarajanBaseOperator):
+    ui_color = '#40c435'
+
+    def __init__(self, op, *args, **kwargs):
+        self.op = op
+        super(KarajanDependencyOperator, self).__init__(*args, task_id=op.task_id, **kwargs)
+
+    def execute(self, context):
+        if context['dag_run'].external_trigger:
+            logging.info("skipping dependency check due to external run")
+            return
+        self.op.execute(context)
 
 
 class KarajanAggregateOperator(KarajanBaseOperator):

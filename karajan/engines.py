@@ -20,42 +20,41 @@ class BaseEngine(object):
 
     def dependency_operator(self, task_id, dag, dep):
         if isinstance(dep, DeltaDependency):
-            return self.delta_dependency_operator(task_id, dag, dep)
+            op = self.delta_dependency_operator(task_id, dep)
         elif isinstance(dep, TrackingDependency):
-            return self.tracking_dependency_operator(task_id, dag, dep)
+            op = self.tracking_dependency_operator(task_id, dep)
         elif isinstance(dep, NothingDependency):
-            return self.nothing_dependency_operator(task_id, dag)
+            op = self.nothing_dependency_operator(task_id)
         elif isinstance(dep, TaskDependency):
-            return self.task_dependency_operator(task_id, dag, dep)
+            op = self.task_dependency_operator(task_id, dep)
         else:
             raise StandardError("Dependency operator for %s not found" % type(dep))
+        return KarajanDependencyOperator(op=op, dag=dag)
 
     @staticmethod
-    def delta_dependency_operator(task_id, dag, dep):
+    def delta_dependency_operator(task_id, dep):
         return TimeDeltaSensor(
             task_id=task_id,
-            dag=dag,
             delta=dep.delta,
         )
 
-    def nothing_dependency_operator(self, task_id, dag):
-        return self._dummy_operator(task_id, dag)
+    def nothing_dependency_operator(self, task_id):
+        return self._dummy_operator(task_id)
 
-    def tracking_dependency_operator(self, task_id, dag, dep):
-        return self._dummy_operator(task_id, dag)
+    def tracking_dependency_operator(self, task_id, dep):
+        return self._dummy_operator(task_id)
 
     @staticmethod
-    def task_dependency_operator(task_id, dag, dep):
+    def task_dependency_operator(task_id, dep):
         return ExternalTaskSensor(
             task_id=task_id,
             external_task_id=dep.task_id,
             external_dag_id=dep.dag_id,
-            dag=dag,
         )
 
     @staticmethod
-    def _dummy_operator(task_id, dag):
-        return DummyOperator(task_id=task_id, dag=dag)
+    def _dummy_operator(task_id):
+        return DummyOperator(task_id=task_id)
 
     # new interface
 
@@ -150,10 +149,9 @@ class ExasolEngine(BaseEngine):
         }
         super(ExasolEngine, self).__init__(task_attributes=task_attributes)
 
-    def tracking_dependency_operator(self, task_id, dag, dep):
+    def tracking_dependency_operator(self, task_id, dep):
         return SqlSensor(
             task_id=task_id,
-            dag=dag,
             conn_id=self.conn_id,
             sql="SELECT created_date FROM %s.%s WHERE CREATED_DATE>'{{ ds }}' LIMIT 1" % (
                 dep.schema, dep.table),
