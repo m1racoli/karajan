@@ -221,9 +221,11 @@ class Aggregation(ModelBase):
 
 
 class KarajanDAG(DAG):
-    def __init__(self, karajan_id, engine, item, *args, **kwargs):
+    def __init__(self, karajan_id, engine, item, targets, aggregations, *args, **kwargs):
         self.karajan_id = karajan_id
         self.engine = engine
         self.item = item
+        self.targets = targets
+        self.aggregations = aggregations
         dag_id = "%s_%s" % (karajan_id, item) if item else karajan_id
         super(KarajanDAG, self).__init__(*args, dag_id=dag_id, catchup=False, **kwargs)

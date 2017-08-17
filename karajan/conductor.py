@@ -26,8 +26,16 @@ class Conductor(object):
 
         for item, params in self.context.params().iteritems():
             item_start_date = min(t.start_date for t in self.targets.values() if t.has_item(item))
-            dag = KarajanDAG(dag_id, engine, item, start_date=item_start_date)
-            self._build_subdag(params, dag)
+            targets = {t.name: t for t in self.targets.values() if t.has_item(item)}
+            aggregations = {a: self.aggregations[a] for a in {a for t in targets.values() for a in t.aggregations}}
+            dag = KarajanDAG(
+                dag_id,
+                engine,
+                item,
+                targets,
+                aggregations,
+                start_date=item_start_date)
+            self._build_dag(params, dag)
             dags[dag.dag_id] = dag
 
         if output is not None:
@@ -35,12 +43,13 @@ class Conductor(object):
 
         return dags
 
-    def _build_subdag(self, params, dag):
+    @staticmethod
+    def _build_dag(params, dag):
         init = DummyOperator(task_id='init', dag=dag)
         done = DummyOperator(task_id='done', dag=dag)
 
-        targets = [t for t in self.targets.values() if t.has_item(dag.item)]
-        aggregations = [self.aggregations[a] for a in {a for t in targets for a in t.aggregations}]
+        targets = dag.targets.values()
+        aggregations = dag.aggregations.values()
         aggregation_operators = {}
         merge_operators = {}
         dependency_operators = {}
@@ -71,7 +80,7 @@ class Conductor(object):
 
             aggregation_operators[aggregation.name] = aggregation_operator
 
-            for dependency in self._get_dependencies(aggregation, params):
+            for dependency in Conductor._get_dependencies(aggregation, params):
                 if isinstance(dependency, TargetDependency):
                     target_dependencies[aggregation.name] = target_dependencies.get(aggregation.name, [])
                     target_dependencies[aggregation.name].append(dependency)
@@ -108,8 +117,8 @@ class Conductor(object):
         for aggregation_id, dependencies in target_dependencies.iteritems():
             aggregation_operator = aggregation_operators[aggregation_id]
             for target_dependency in dependencies:
-                target = self.targets[target_dependency.target]
-                if not target.has_item(dag.item):
+                target = dag.targets[target_dependency.target]
+                if not target:
                     # nothing to wait for for this item
                     continue
                 for agg_id in target.aggregations_for_columns(target_dependency.columns):
