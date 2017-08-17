@@ -75,7 +75,7 @@ class TestConductor(TestCase):
         self.build_dags().execute('aggregate_test_aggregation')
         self.engine.aggregate.assert_called_with(
             defaults.TMP_TABLE_NAME,
-            ['another_table_test_src_column', 'test_src_column', 'key_column', 'another_test_src_column', 'test_time_key'],
+            ['test_time_key', 'another_table_test_src_column', 'test_src_column', 'key_column', 'another_test_src_column'],
             u"SELECT * FROM DUAL WHERE dt BETWEEN '2017-08-01' AND '2017-08-01'",
             None,
         )
@@ -85,8 +85,8 @@ class TestConductor(TestCase):
         self.build_dags().execute('aggregate_test_aggregation')
         self.engine.aggregate.assert_called_with(
             defaults.TMP_TABLE_NAME,
-            ['another_table_test_src_column', 'test_src_column', 'key_column',
-             'another_test_src_column', 'test_time_key'],
+            ['test_time_key', 'another_table_test_src_column', 'test_src_column', 'key_column',
+             'another_test_src_column'],
             u"SELECT * FROM DUAL WHERE dt BETWEEN '2017-08-01' AND '2017-08-01'",
             None,
         )
@@ -106,8 +106,8 @@ class TestConductor(TestCase):
         self.build_dags().execute('aggregate_test_aggregation', 'item')
         self.engine.aggregate.assert_called_with(
             defaults.TMP_ITEM_TABLE_NAME,
-            ['another_table_test_src_column', 'test_src_column', 'key_column', 'item_column',
-             'another_test_src_column', 'test_time_key'],
+            ['another_table_test_src_column', 'item_column', 'test_time_key', 'test_src_column', 'key_column',
+             'another_test_src_column'],
             u"SELECT * FROM DUAL WHERE dt BETWEEN '2017-08-01' AND '2017-08-01'",
             {'item_column': 'item'},
         )
@@ -117,8 +117,8 @@ class TestConductor(TestCase):
         self.build_dags().execute('aggregate_test_aggregation', 'item')
         self.engine.aggregate.assert_called_with(
             defaults.TMP_ITEM_TABLE_NAME,
-            ['another_table_test_src_column', 'test_src_column', 'key_column', "'item' as item_column",
-             'another_test_src_column', 'test_time_key'],
+            ['another_table_test_src_column', "'item' as item_column", 'test_time_key', 'test_src_column', 'key_column',
+             'another_test_src_column'],
             u"SELECT * FROM item WHERE dt BETWEEN '2017-08-01' AND '2017-08-01'",
             None,
         )
@@ -128,7 +128,7 @@ class TestConductor(TestCase):
         self.build_dags().execute('aggregate_test_aggregation')
         self.engine.aggregate.assert_called_with(
             defaults.TMP_TABLE_NAME,
-            ['another_table_test_src_column', 'test_src_column', 'key_column', 'another_test_src_column', 'test_time_key'],
+            ['test_time_key', 'another_table_test_src_column', 'test_src_column', 'key_column', 'another_test_src_column'],
             u"SELECT * FROM DUAL WHERE dt BETWEEN '2017-07-31' AND '2017-07-31'",
             None,
         )
@@ -138,7 +138,7 @@ class TestConductor(TestCase):
         self.build_dags().execute('aggregate_test_aggregation')
         self.engine.aggregate.assert_called_with(
             defaults.TMP_TABLE_NAME,
-            ['another_table_test_src_column', 'test_src_column', 'key_column', 'another_test_src_column', 'test_time_key'],
+            ['test_time_key', 'another_table_test_src_column', 'test_src_column', 'key_column', 'another_test_src_column'],
             u"SELECT * FROM DUAL WHERE dt BETWEEN '2017-07-29' AND '2017-08-01'",
             None,
         )
@@ -148,7 +148,7 @@ class TestConductor(TestCase):
         self.build_dags().execute('aggregate_test_aggregation')
         self.engine.aggregate.assert_called_with(
             defaults.TMP_TABLE_NAME,
-            ['another_table_test_src_column', 'test_src_column', 'key_column', 'another_test_src_column', 'test_time_key'],
+            ['test_time_key', 'another_table_test_src_column', 'test_src_column', 'key_column', 'another_test_src_column'],
             u"SELECT * FROM DUAL WHERE dt BETWEEN '2017-07-28' AND '2017-07-31'",
             None,
         )
@@ -157,7 +157,7 @@ class TestConductor(TestCase):
         self.build_dags().execute('aggregate_test_aggregation', external_trigger=True)
         self.engine.aggregate.assert_called_with(
             defaults.EXTERNAL_TMP_TABLE_NAME,
-            ['another_table_test_src_column', 'test_src_column', 'key_column', 'another_test_src_column', 'test_time_key'],
+            ['test_time_key', 'another_table_test_src_column', 'test_src_column', 'key_column', 'another_test_src_column'],
             u"SELECT * FROM DUAL WHERE dt BETWEEN '2016-08-01' AND '2016-09-01'",
             None,
         )
@@ -167,7 +167,7 @@ class TestConductor(TestCase):
         self.build_dags().execute('aggregate_test_aggregation', external_trigger=True)
         self.engine.aggregate.assert_called_with(
             defaults.EXTERNAL_TMP_TABLE_NAME,
-            ['another_table_test_src_column', 'test_src_column', 'key_column', 'another_test_src_column', 'test_time_key'],
+            ['test_time_key', 'another_table_test_src_column', 'test_src_column', 'key_column', 'another_test_src_column'],
             u"SELECT * FROM DUAL WHERE dt BETWEEN '2016-07-28' AND '2016-08-31'",
             None,
         )
