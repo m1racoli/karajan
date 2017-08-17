@@ -58,6 +58,8 @@ class KarajanDependencyOperator(KarajanBaseOperator):
             logging.info("skipping dependency check due to external run")
             return
         ti = TaskInstance(self.op, context['execution_date'])
+        # the task is not supposed to have a DAG, but for the rendering we need access to the DAG
+        setattr(ti.task, '_dag', self.dag)
         ti.render_templates()
         ti.task.execute(context)
 
