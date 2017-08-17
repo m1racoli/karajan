@@ -20,15 +20,16 @@ class BaseEngine(object):
 
     def dependency_operator(self, task_id, dag, dep):
         if isinstance(dep, DeltaDependency):
-            return self.delta_dependency_operator(task_id, dag, dep)
+            op = self.delta_dependency_operator(task_id, None, dep)
         elif isinstance(dep, TrackingDependency):
-            return self.tracking_dependency_operator(task_id, dag, dep)
+            op = self.tracking_dependency_operator(task_id, None, dep)
         elif isinstance(dep, NothingDependency):
-            return self.nothing_dependency_operator(task_id, dag)
+            op = self.nothing_dependency_operator(task_id, None)
         elif isinstance(dep, TaskDependency):
-            return self.task_dependency_operator(task_id, dag, dep)
+            op = self.task_dependency_operator(task_id, None, dep)
         else:
             raise StandardError("Dependency operator for %s not found" % type(dep))
+        return KarajanDependencyOperator(op=op, dag=dag)
 
     @staticmethod
     def delta_dependency_operator(task_id, dag, dep):

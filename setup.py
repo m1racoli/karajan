@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='karajan',
-    version='0.3.5',
+    version='0.3.6',
     url='https://github.com/wooga/bit.karajan',
     license='',
     packages=['karajan', 'karajan.bin'],
