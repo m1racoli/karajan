@@ -3,6 +3,7 @@ from unittest import TestCase
 from airflow.exceptions import AirflowException
 from mock.mock import MagicMock
 from nose.tools import assert_equal
+from parameterized.parameterized import parameterized
 
 from karajan.conductor import Conductor
 from karajan.engines import *
@@ -198,3 +199,22 @@ VALUES (tmp.tmp_time_col, tmp.tmp_key_col, tmp.src_val_1, tmp.src_val_2)""")
         except StandardError as e:
             exception = e
         assert_equal(True, isinstance(exception, StandardError))
+
+    @parameterized.expand([
+        'aggregate_test_aggregation',
+        'merge_test_aggregation_test_table',
+        'cleanup_test_aggregation',
+        'finish_test_table'
+    ])
+    def test_engine_attributes(self, task_id):
+        queue='another_queue'
+        retries=34
+        retry_delay=timedelta(seconds=33)
+        self.engine = ExasolEngine('tmp_schema',
+                                   queue=queue,
+                                   retries=retries,
+                                   retry_delay=retry_delay)
+        op = self.build_dags().get_operator(task_id)
+        assert_equal(queue, op.queue)
+        assert_equal(retries, op.retries)
+        assert_equal(retry_delay, op.retry_delay)
