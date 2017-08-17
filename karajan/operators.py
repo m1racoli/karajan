@@ -57,7 +57,7 @@ class KarajanDependencyOperator(KarajanBaseOperator):
         if context['dag_run'].external_trigger:
             logging.info("skipping dependency check due to external run")
             return
-        ti = TaskInstance(self.op, context['ds'])
+        ti = TaskInstance(self.op, context['execution_date'])
         ti.render_templates()
         ti.task.execute(context)
 
