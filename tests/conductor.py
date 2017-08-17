@@ -231,21 +231,21 @@ class TestConductor(TestCase):
     def test_merge_operator_merge(self):
         self.build_dags().execute('merge_test_aggregation_test_table')
         self.engine.merge.assert_called_with(defaults.TMP_TABLE_NAME, defaults.TARGET_SCHEMA_NAME, defaults.TARGET_NAME,
-                                             {'key_column': 'key_column'}, defaults.MERGE_VALUE_COLUMNS, defaults.MERGE_UPDATE_TYPES)
+                                             {'key_column': 'key_column'}, defaults.MERGE_VALUE_COLUMNS, defaults.MERGE_UPDATE_TYPES, 'test_time_key')
 
     def test_merge_operator_merge_with_parametrization(self):
         self.conf.parameterize_context()
         self.build_dags().execute('merge_test_aggregation_test_table', 'item')
         self.engine.merge.assert_called_with(defaults.TMP_ITEM_TABLE_NAME, defaults.TARGET_SCHEMA_NAME,
                                              defaults.TARGET_NAME, {'key_column': 'key_column', 'item_column': 'item_column'},
-                                             defaults.MERGE_VALUE_COLUMNS, defaults.MERGE_UPDATE_TYPES)
+                                             defaults.MERGE_VALUE_COLUMNS, defaults.MERGE_UPDATE_TYPES, 'test_time_key')
 
     def test_merge_operator_merge_with_timeseries(self):
         self.conf.with_timeseries()
         self.build_dags().execute('merge_test_aggregation_test_table')
         self.engine.merge.assert_called_with(defaults.TMP_TABLE_NAME, defaults.TARGET_SCHEMA_NAME,
                                              defaults.TARGET_NAME, {'key_column': 'key_column', 'timeseries_column': 'test_time_key'},
-                                             defaults.MERGE_VALUE_COLUMNS, None)
+                                             defaults.MERGE_VALUE_COLUMNS, None, None)
 
     def test_merge_operator_merge_with_timeseries_and_parametrization(self):
         self.conf.parameterize_context().with_timeseries()
@@ -253,12 +253,12 @@ class TestConductor(TestCase):
         self.engine.merge.assert_called_with(defaults.TMP_ITEM_TABLE_NAME, defaults.TARGET_SCHEMA_NAME,
                                              defaults.TARGET_NAME,
                                              {'key_column': 'key_column', 'timeseries_column': 'test_time_key', 'item_column': 'item_column'},
-                                             defaults.MERGE_VALUE_COLUMNS, None)
+                                             defaults.MERGE_VALUE_COLUMNS, None, None)
 
     def test_merge_operator_merge_with_external_trigger(self):
         self.build_dags().execute('merge_test_aggregation_test_table', external_trigger=True)
         self.engine.merge.assert_called_with(defaults.EXTERNAL_TMP_TABLE_NAME, defaults.TARGET_SCHEMA_NAME, defaults.TARGET_NAME,
-                                             {'key_column': 'key_column'}, defaults.MERGE_VALUE_COLUMNS, defaults.MERGE_UPDATE_TYPES)
+                                             {'key_column': 'key_column'}, defaults.MERGE_VALUE_COLUMNS, defaults.MERGE_UPDATE_TYPES, 'test_time_key')
 
     def test_finish_operator_purge_without_timeseries(self):
         self.build_dags().execute('finish_test_table')

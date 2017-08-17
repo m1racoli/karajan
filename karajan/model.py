@@ -155,7 +155,7 @@ class AggregatedColumn(ModelBase):
     max_update_type = 'MAX'
     _default_update_type = replace_update_type
     _update_types = {replace_update_type, keep_update_type, min_update_type, max_update_type}
-    _depends_on_past_update_types = {replace_update_type, keep_update_type}
+    depends_on_past_update_types = {replace_update_type, keep_update_type}
 
     def __init__(self, aggregation_id, column_name, conf):
         self.aggregation_id = aggregation_id
@@ -179,7 +179,7 @@ class AggregatedColumn(ModelBase):
         super(AggregatedColumn, self).validate()
 
     def depends_on_past(self):
-        return self.update_type in self._depends_on_past_update_types
+        return self.update_type in self.depends_on_past_update_types
 
 
 class Aggregation(ModelBase):

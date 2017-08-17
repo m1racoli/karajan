@@ -131,11 +131,13 @@ class KarajanMergeOperator(KarajanBaseOperator):
         if self.target.is_timeseries():
             key_columns[self.target.timeseries_key] = self.aggregation.time_key
             update_types = None
+            time_key = None
         else:
             update_types = {ac.name: ac.update_type for ac in
                             self.target.aggregated_columns(self.aggregation.name).values()}
+            time_key = self.aggregation.time_key
 
-        self.engine.merge(tmp_table_name, schema_name, table_name, key_columns, value_columns, update_types)
+        self.engine.merge(tmp_table_name, schema_name, table_name, key_columns, value_columns, update_types, time_key)
 
 
 class KarajanFinishOperator(KarajanBaseOperator):
