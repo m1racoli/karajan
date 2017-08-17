@@ -60,11 +60,11 @@ class Conductor(object):
             finish_operator.set_downstream(done)
 
         for aggregation in aggregations:
-            src_column_names = list({c for t in targets for c in t.src_column_names(aggregation.name)})
-            src_column_names.append(aggregation.time_key)
+            src_column_names = {c for t in targets for c in t.src_column_names(aggregation.name)}
+            src_column_names.add(aggregation.time_key)
             aggregation_operator = KarajanAggregateOperator(
                 aggregation=aggregation,
-                columns=src_column_names,
+                columns=list(src_column_names),
                 params=params,
                 dag=dag
             )
