@@ -24,8 +24,14 @@ def run(args):
         'end_date': end_date,
     }
 
+    items = args.items
+    if items:
+        items = set(items.split(','))
+
     # create DAG runs
     for dag in dags.values():
+        if items and dag.item not in items:
+            continue
         logging.info("trigger {} ({}) from {} to {}".format(dag.dag_id, run_id, start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d')))
         dag.create_dagrun(
             run_id=run_id,
@@ -64,13 +70,15 @@ class KarajanCLIFactory(cli.CLIFactory):
         'end_date': cli.Arg(
             ("-e", "--end_date"), "Set end_date YYYY-MM-DD",
             type=parsedate),
+        'items': cli.Arg(
+            ("-i", "--items"), "Run for selected items"),
     }
 
     subparsers = (
         {
             'func': run,
             'help': "Trigger aggregations for a Karajan setup",
-            'args': ('karajan_id', 'subdir', 'start_date', 'end_date'),
+            'args': ('karajan_id', 'subdir', 'start_date', 'end_date', 'items'),
         },
     )
     subparsers_dict = {sp['func'].__name__: sp for sp in subparsers}
