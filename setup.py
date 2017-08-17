@@ -2,10 +2,10 @@ from setuptools import setup
 
 setup(
     name='karajan',
-    version='0.3.2',
+    version='0.3.3',
     url='https://github.com/wooga/bit.karajan',
     license='',
-    packages=['karajan'],
+    packages=['karajan', 'karajan.bin'],
     author='Wooga Business Intelligence Team',
     author_email='bit-admin@wooga.com',
     description='A conductor of aggregations in Apache Airflow',
