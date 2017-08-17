@@ -75,7 +75,7 @@ class TestConductor(TestCase):
         self.build_dags().execute('aggregate_test_aggregation')
         self.engine.aggregate.assert_called_with(
             defaults.TMP_TABLE_NAME,
-            ['another_table_test_src_column', 'test_src_column', 'key_column', 'another_test_src_column'],
+            ['another_table_test_src_column', 'test_src_column', 'key_column', 'another_test_src_column', 'test_time_key'],
             u"SELECT * FROM DUAL WHERE dt BETWEEN '2017-08-01' AND '2017-08-01'",
             None,
         )
@@ -85,8 +85,8 @@ class TestConductor(TestCase):
         self.build_dags().execute('aggregate_test_aggregation')
         self.engine.aggregate.assert_called_with(
             defaults.TMP_TABLE_NAME,
-            ['timeseries_column', 'another_table_test_src_column', 'test_src_column', 'key_column',
-             'another_test_src_column'],
+            ['another_table_test_src_column', 'test_src_column', 'key_column',
+             'another_test_src_column', 'test_time_key'],
             u"SELECT * FROM DUAL WHERE dt BETWEEN '2017-08-01' AND '2017-08-01'",
             None,
         )
@@ -96,7 +96,7 @@ class TestConductor(TestCase):
         self.build_dags().execute('aggregate_another_aggregation')
         self.engine.aggregate.assert_called_with(
             'test_dag_agg_another_aggregation_20170801',
-            ['another_aggregation_test_src_column', 'key_column'],
+            ['another_aggregation_test_src_column', 'key_column', 'another_test_time_key'],
             u"SELECT everything FROM here",
             None,
         )
@@ -107,7 +107,7 @@ class TestConductor(TestCase):
         self.engine.aggregate.assert_called_with(
             defaults.TMP_ITEM_TABLE_NAME,
             ['another_table_test_src_column', 'test_src_column', 'key_column', 'item_column',
-             'another_test_src_column'],
+             'another_test_src_column', 'test_time_key'],
             u"SELECT * FROM DUAL WHERE dt BETWEEN '2017-08-01' AND '2017-08-01'",
             {'item_column': 'item'},
         )
@@ -118,7 +118,7 @@ class TestConductor(TestCase):
         self.engine.aggregate.assert_called_with(
             defaults.TMP_ITEM_TABLE_NAME,
             ['another_table_test_src_column', 'test_src_column', 'key_column', "'item' as item_column",
-             'another_test_src_column'],
+             'another_test_src_column', 'test_time_key'],
             u"SELECT * FROM item WHERE dt BETWEEN '2017-08-01' AND '2017-08-01'",
             None,
         )
@@ -128,7 +128,7 @@ class TestConductor(TestCase):
         self.build_dags().execute('aggregate_test_aggregation')
         self.engine.aggregate.assert_called_with(
             defaults.TMP_TABLE_NAME,
-            ['another_table_test_src_column', 'test_src_column', 'key_column', 'another_test_src_column'],
+            ['another_table_test_src_column', 'test_src_column', 'key_column', 'another_test_src_column', 'test_time_key'],
             u"SELECT * FROM DUAL WHERE dt BETWEEN '2017-07-31' AND '2017-07-31'",
             None,
         )
@@ -138,7 +138,7 @@ class TestConductor(TestCase):
         self.build_dags().execute('aggregate_test_aggregation')
         self.engine.aggregate.assert_called_with(
             defaults.TMP_TABLE_NAME,
-            ['another_table_test_src_column', 'test_src_column', 'key_column', 'another_test_src_column'],
+            ['another_table_test_src_column', 'test_src_column', 'key_column', 'another_test_src_column', 'test_time_key'],
             u"SELECT * FROM DUAL WHERE dt BETWEEN '2017-07-29' AND '2017-08-01'",
             None,
         )
@@ -148,7 +148,7 @@ class TestConductor(TestCase):
         self.build_dags().execute('aggregate_test_aggregation')
         self.engine.aggregate.assert_called_with(
             defaults.TMP_TABLE_NAME,
-            ['another_table_test_src_column', 'test_src_column', 'key_column', 'another_test_src_column'],
+            ['another_table_test_src_column', 'test_src_column', 'key_column', 'another_test_src_column', 'test_time_key'],
             u"SELECT * FROM DUAL WHERE dt BETWEEN '2017-07-28' AND '2017-07-31'",
             None,
         )
@@ -157,7 +157,7 @@ class TestConductor(TestCase):
         self.build_dags().execute('aggregate_test_aggregation', external_trigger=True)
         self.engine.aggregate.assert_called_with(
             defaults.EXTERNAL_TMP_TABLE_NAME,
-            ['another_table_test_src_column', 'test_src_column', 'key_column', 'another_test_src_column'],
+            ['another_table_test_src_column', 'test_src_column', 'key_column', 'another_test_src_column', 'test_time_key'],
             u"SELECT * FROM DUAL WHERE dt BETWEEN '2016-08-01' AND '2016-09-01'",
             None,
         )
@@ -167,12 +167,20 @@ class TestConductor(TestCase):
         self.build_dags().execute('aggregate_test_aggregation', external_trigger=True)
         self.engine.aggregate.assert_called_with(
             defaults.EXTERNAL_TMP_TABLE_NAME,
-            ['another_table_test_src_column', 'test_src_column', 'key_column', 'another_test_src_column'],
+            ['another_table_test_src_column', 'test_src_column', 'key_column', 'another_test_src_column', 'test_time_key'],
             u"SELECT * FROM DUAL WHERE dt BETWEEN '2016-07-28' AND '2016-08-31'",
             None,
         )
 
     def test_merge_operator_bootstrap(self):
+        self.conf.parameterize_context()
+        self.engine.describe.return_value = defaults.DESCRIBE_SRC_COLUMNS
+        self.build_dags().execute('merge_test_aggregation_test_table', 'item')
+        self.engine.describe.assert_called_with(defaults.TMP_ITEM_TABLE_NAME)
+        self.engine.bootstrap.assert_called_with(defaults.TARGET_SCHEMA_NAME, defaults.TARGET_NAME,
+                                                 defaults.DESCRIBE_TARGET_COLUMNS_WITH_META)
+
+    def test_merge_operator_bootstrap_with_timeseries(self):
         self.conf.parameterize_context().with_timeseries()
         self.engine.describe.return_value = defaults.DESCRIBE_SRC_COLUMNS
         self.build_dags().execute('merge_test_aggregation_test_table', 'item')
@@ -223,34 +231,34 @@ class TestConductor(TestCase):
     def test_merge_operator_merge(self):
         self.build_dags().execute('merge_test_aggregation_test_table')
         self.engine.merge.assert_called_with(defaults.TMP_TABLE_NAME, defaults.TARGET_SCHEMA_NAME, defaults.TARGET_NAME,
-                                             ['key_column'], defaults.MERGE_VALUE_COLUMNS, defaults.MERGE_UPDATE_TYPES)
+                                             {'key_column': 'key_column'}, defaults.MERGE_VALUE_COLUMNS, defaults.MERGE_UPDATE_TYPES, 'test_time_key')
 
     def test_merge_operator_merge_with_parametrization(self):
         self.conf.parameterize_context()
         self.build_dags().execute('merge_test_aggregation_test_table', 'item')
         self.engine.merge.assert_called_with(defaults.TMP_ITEM_TABLE_NAME, defaults.TARGET_SCHEMA_NAME,
-                                             defaults.TARGET_NAME, ['key_column', 'item_column'],
-                                             defaults.MERGE_VALUE_COLUMNS, defaults.MERGE_UPDATE_TYPES)
+                                             defaults.TARGET_NAME, {'key_column': 'key_column', 'item_column': 'item_column'},
+                                             defaults.MERGE_VALUE_COLUMNS, defaults.MERGE_UPDATE_TYPES, 'test_time_key')
 
     def test_merge_operator_merge_with_timeseries(self):
         self.conf.with_timeseries()
         self.build_dags().execute('merge_test_aggregation_test_table')
         self.engine.merge.assert_called_with(defaults.TMP_TABLE_NAME, defaults.TARGET_SCHEMA_NAME,
-                                             defaults.TARGET_NAME, ['key_column', 'timeseries_column'],
-                                             defaults.MERGE_VALUE_COLUMNS, None)
+                                             defaults.TARGET_NAME, {'key_column': 'key_column', 'timeseries_column': 'test_time_key'},
+                                             defaults.MERGE_VALUE_COLUMNS, None, None)
 
     def test_merge_operator_merge_with_timeseries_and_parametrization(self):
         self.conf.parameterize_context().with_timeseries()
         self.build_dags().execute('merge_test_aggregation_test_table', 'item')
         self.engine.merge.assert_called_with(defaults.TMP_ITEM_TABLE_NAME, defaults.TARGET_SCHEMA_NAME,
                                              defaults.TARGET_NAME,
-                                             ['key_column', 'timeseries_column', 'item_column'],
-                                             defaults.MERGE_VALUE_COLUMNS, None)
+                                             {'key_column': 'key_column', 'timeseries_column': 'test_time_key', 'item_column': 'item_column'},
+                                             defaults.MERGE_VALUE_COLUMNS, None, None)
 
     def test_merge_operator_merge_with_external_trigger(self):
         self.build_dags().execute('merge_test_aggregation_test_table', external_trigger=True)
         self.engine.merge.assert_called_with(defaults.EXTERNAL_TMP_TABLE_NAME, defaults.TARGET_SCHEMA_NAME, defaults.TARGET_NAME,
-                                             ['key_column'], defaults.MERGE_VALUE_COLUMNS, defaults.MERGE_UPDATE_TYPES)
+                                             {'key_column': 'key_column'}, defaults.MERGE_VALUE_COLUMNS, defaults.MERGE_UPDATE_TYPES, 'test_time_key')
 
     def test_finish_operator_purge_without_timeseries(self):
         self.build_dags().execute('finish_test_table')

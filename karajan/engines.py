@@ -7,6 +7,7 @@ from airflow.operators.jdbc_operator import JdbcOperator
 from airflow.operators.sensors import SqlSensor, TimeDeltaSensor, ExternalTaskSensor
 
 from karajan.dependencies import *
+from karajan.model import AggregatedColumn
 from karajan.operators import *
 
 
@@ -96,7 +97,7 @@ class BaseEngine(object):
         """
         raise NotImplementedError()
 
-    def merge(self, tmp_table_name, schema_name, table_name, key_columns, value_columns, update_types=None):
+    def merge(self, tmp_table_name, schema_name, table_name, key_columns, value_columns, update_types=None, time_key=None):
         """
 
         :type tmp_table_name: str
@@ -105,6 +106,7 @@ class BaseEngine(object):
         :type key_columns: dict
         :type value_columns: dict
         :type update_types: dict
+        :type time_key: str
         """
         raise NotImplementedError()
 
@@ -159,6 +161,13 @@ class ExasolEngine(BaseEngine):
             return "'%s'" % val
         else:
             return val
+
+    @staticmethod
+    def col_escape(col):
+        if col.startswith('_'):
+            return '"%s"' % col
+        else:
+            return col
 
     @staticmethod
     def _where(d):
@@ -225,7 +234,7 @@ class ExasolEngine(BaseEngine):
             ddl = "CREATE TABLE {schema}.{table} ({col_defs})".format(
                 table=table_name.upper(),
                 schema=schema_name.upper(),
-                col_defs=', '.join("%s %s DEFAULT NULL" % (c.upper(), t) for c, t in columns.iteritems())
+                col_defs=', '.join("%s %s DEFAULT NULL" % (self.col_escape(c.upper()), t) for c, t in columns.iteritems())
             )
             self._execute(ddl)
         else:
@@ -236,7 +245,7 @@ class ExasolEngine(BaseEngine):
                     ddl.append("ALTER TABLE {schema}.{table} ADD COLUMN {col} {ctype} DEFAULT NULL".format(
                         schema=schema_name.upper(),
                         table=table_name.upper(),
-                        col=column.upper(),
+                        col=self.col_escape(column.upper()),
                         ctype=columns[column],
                     ))
             if ddl:
@@ -251,45 +260,79 @@ class ExasolEngine(BaseEngine):
         )
         self._execute(sql)
 
-    def merge(self, tmp_table_name, schema_name, table_name, key_columns, value_columns, update_types=None):
-        def update_op(col, src_col, update_type):
+    def merge(self, tmp_table_name, schema_name, table_name, key_columns, value_columns, update_types=None, time_key=None):
+        def update_op(col, key_cols, update_type):
             if update_type == 'REPLACE':
-                return "tbl.{col} = IFNULL(tmp.{src_col}, tbl.{col})".format(
-                    col=col, src_col=src_col)
+                return """FIRST_VALUE("{updated_at}") OVER (PARTITION BY {key_cols} ORDER BY DECODE({col}, NULL, NULL, "{updated_at}") DESC NULLS FIRST) AS "{updated_at}",
+FIRST_VALUE({col}) OVER (PARTITION BY {key_cols} ORDER BY DECODE({col}, NULL, NULL, "{updated_at}") DESC NULLS FIRST) AS {col}""".format(
+                    col=col, key_cols=key_cols, updated_at='_%s_UPDATED_AT' % col.upper())
             elif update_type == 'KEEP':
-                return "tbl.{col} = IFNULL(tbl.{col}, tmp.{src_col})".format(
-                    col=col, src_col=src_col)
+                return """FIRST_VALUE("{updated_at}") OVER (PARTITION BY {key_cols} ORDER BY DECODE({col}, NULL, NULL, "{updated_at}") ASC NULLS LAST) AS "{updated_at}",
+FIRST_VALUE({col}) OVER (PARTITION BY {key_cols} ORDER BY DECODE({col}, NULL, NULL, "{updated_at}") ASC NULLS LAST) AS {col}""".format(
+                    col=col, key_cols=key_cols, updated_at='_%s_UPDATED_AT' % col.upper())
             elif update_type == 'MIN':
-                return "tbl.{col} = COALESCE(LEAST(tbl.{col}, tmp.{src_col}), tbl.{col}, tmp.{src_col})".format(
-                    col=col, src_col=src_col)
+                return "MIN({col}) OVER (PARTITION BY {key_cols}) AS {col}".format(
+                    col=col, key_cols=key_cols)
             elif update_type == 'MAX':
-                return "tbl.{col} = COALESCE(GREATEST(tbl.{col}, tmp.{src_col}), tbl.{col}, tmp.{src_col})".format(
-                    col=col, src_col=src_col)
+                return "MAX({col}) OVER (PARTITION BY {key_cols}) AS {col}".format(
+                    col=col, key_cols=key_cols)
             return None
 
         if update_types:
-            set_cols = ', '.join([update_op(col, src, update_types[col]) for col, src in value_columns.iteritems()])
+            key_cols = key_columns.keys()
+            val_cols = value_columns.keys() + [self.col_escape('_%s_UPDATED_AT' % c.upper()) for c in value_columns.keys() if update_types[c] in AggregatedColumn.depends_on_past_update_types]
+            all_cols = key_cols +  val_cols
+            select = """SELECT DISTINCT
+{key_cols},
+{update_val_cols}
+FROM (
+SELECT {all_cols} FROM {schema}.{table} a
+WHERE EXISTS (SELECT 1 FROM {tmp_schema}.{tmp_table} t WHERE {exists_where})
+UNION ALL
+SELECT {src_cols} FROM {tmp_schema}.{tmp_table})""".format(
+                key_cols=', '.join(key_cols),
+                update_val_cols=',\n'.join(update_op(c, ', '.join(key_cols), update_types[c]) for c in value_columns.keys()),
+                all_cols=', '.join(all_cols),
+                schema=schema_name,
+                table=table_name,
+                tmp_schema=self.tmp_schema,
+                tmp_table=tmp_table_name,
+                exists_where=' AND '.join('a.%s = t.%s' % (a, t) for a, t in key_columns.iteritems()),
+                src_cols=', '.join(key_columns.values() + value_columns.values() + [time_key for c in value_columns.keys() if update_types[c] in AggregatedColumn.depends_on_past_update_types])
+            )
+            on_cols = ' AND '.join("tbl.%s = tmp.%s" % (c, c) for c in key_columns.keys())
+            set_cols = ', '.join('tbl.%s = tmp.%s' % (c, c) for c in val_cols)
+            in_cols = ', '.join(all_cols)
+            in_vals = ', '.join("tmp.%s" % c for c in all_cols)
         else:
+            select = "SELECT {src_cols} FROM {tmp_schema}.{tmp_table}".format(
+                src_cols=', '.join(key_columns.values() + value_columns.values()),
+                tmp_schema=self.tmp_schema,
+                tmp_table=tmp_table_name,
+            )
+            on_cols = ' AND '.join(["tbl.%s = tmp.%s" % (t, s) for t, s in key_columns.iteritems()])
             set_cols = ', '.join(["tbl.%s = tmp.%s" % (col, src) for col, src in value_columns.iteritems()])
+            in_cols = ', '.join(key_columns.keys() + value_columns.keys())
+            in_vals = ', '.join(["tmp.%s" % c for c in key_columns.values() + value_columns.values()])
 
         sql = """MERGE INTO {schema}.{table} tbl
-USING (SELECT {src_cols} FROM {tmp_schema}.{tmp_table}) tmp
+USING ({select}) tmp
 ON {on_cols}
-WHEN MATCHED THEN
-UPDATE SET
+WHEN MATCHED THEN UPDATE SET
 {set_cols}
 WHEN NOT MATCHED THEN
 INSERT ({in_cols})
 VALUES ({in_vals})""".format(
             schema=schema_name,
             table=table_name,
-            src_cols=', '.join(key_columns + value_columns.values()),
+            select=select,
+            src_cols=', '.join(key_columns.values() + value_columns.values()),
             tmp_schema=self.tmp_schema,
             tmp_table=tmp_table_name,
-            on_cols=' AND '.join(["tbl.%s = tmp.%s" % (c, c) for c in key_columns]),
+            on_cols=on_cols,
             set_cols=set_cols,
-            in_cols=', '.join(key_columns + value_columns.keys()),
-            in_vals=', '.join(["tmp.%s" % c for c in key_columns + value_columns.values()])
+            in_cols=in_cols,
+            in_vals=in_vals
         )
         self._execute(sql)
 

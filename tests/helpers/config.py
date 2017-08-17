@@ -49,9 +49,11 @@ class ConfigHelper(dict):
             'aggregations': {
                 'test_aggregation': {
                     'query': "SELECT * FROM DUAL WHERE dt BETWEEN '{{ start_date }}' AND '{{ end_date }}'",
+                    'time_key': 'test_time_key',
                 },
                 'another_aggregation': {
                     'query': 'SELECT everything FROM here',
+                    'time_key': 'another_test_time_key',
                 },
             },
         }
@@ -95,7 +97,6 @@ class ConfigHelper(dict):
 
     def with_timeseries(self, target_id='test_table'):
         self['targets'][target_id]['timeseries_key'] = 'timeseries_column'
-        self['targets'][target_id]['key_columns'].append('timeseries_column')
         return self
 
     def with_offset(self, offset=1, aggregation_id='test_aggregation'):

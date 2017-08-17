@@ -3,7 +3,6 @@ from unittest import TestCase
 from airflow.exceptions import AirflowException
 from mock.mock import MagicMock
 from nose.tools import assert_equal
-from parameterized.parameterized import parameterized
 
 from karajan.conductor import Conductor
 from karajan.engines import *
@@ -79,21 +78,24 @@ class TestExasolEngine(TestCase):
 
     def test_bootstrap_table_missing(self):
         self.engine._select.return_value = []
-        self.engine.bootstrap('some_schema','some_table', {'key_column': 'VARCHAR(20) UTF8', 'timeseries_column': 'DATE'})
+        self.engine.bootstrap('some_schema','some_table', {'key_column': 'VARCHAR(20) UTF8', 'timeseries_column': 'DATE', '_meta_column': 'DATE'})
         self.engine._select.assert_called_with(
             "SELECT COLUMN_NAME, COLUMN_TYPE FROM EXA_ALL_COLUMNS WHERE COLUMN_TABLE = 'SOME_TABLE' AND COLUMN_SCHEMA = 'SOME_SCHEMA'")
-        self.engine._execute.assert_called_with("CREATE TABLE SOME_SCHEMA.SOME_TABLE (TIMESERIES_COLUMN DATE DEFAULT NULL, KEY_COLUMN VARCHAR(20) UTF8 DEFAULT NULL)")
+        self.engine._execute.assert_called_with("""CREATE TABLE SOME_SCHEMA.SOME_TABLE (TIMESERIES_COLUMN DATE DEFAULT NULL, "_META_COLUMN" DATE DEFAULT NULL, KEY_COLUMN VARCHAR(20) UTF8 DEFAULT NULL)""")
 
     def test_bootstrap_column_missing(self):
         self.engine._select.return_value = [['KEY_COLUMN', 'VARCHAR(20) UTF8']]
-        self.engine.bootstrap('some_schema','some_table', {'key_column': 'VARCHAR(20) UTF8', 'timeseries_column': 'DATE'})
+        self.engine.bootstrap('some_schema','some_table', {'key_column': 'VARCHAR(20) UTF8', 'timeseries_column': 'DATE', '_meta_column': 'DATE'})
         self.engine._select.assert_called_with(
             "SELECT COLUMN_NAME, COLUMN_TYPE FROM EXA_ALL_COLUMNS WHERE COLUMN_TABLE = 'SOME_TABLE' AND COLUMN_SCHEMA = 'SOME_SCHEMA'")
-        self.engine._execute.assert_called_with(["ALTER TABLE SOME_SCHEMA.SOME_TABLE ADD COLUMN TIMESERIES_COLUMN DATE DEFAULT NULL"])
+        self.engine._execute.assert_called_with([
+            "ALTER TABLE SOME_SCHEMA.SOME_TABLE ADD COLUMN TIMESERIES_COLUMN DATE DEFAULT NULL",
+            """ALTER TABLE SOME_SCHEMA.SOME_TABLE ADD COLUMN "_META_COLUMN" DATE DEFAULT NULL""",
+        ])
 
     def test_bootstrap_nothing_missing(self):
-        self.engine._select.return_value = [['KEY_COLUMN', 'VARCHAR(20) UTF8'], ['TIMESERIES_COLUMN', 'DATE']]
-        self.engine.bootstrap('some_schema','some_table', {'key_column': 'VARCHAR(20) UTF8', 'timeseries_column': 'DATE'})
+        self.engine._select.return_value = [['KEY_COLUMN', 'VARCHAR(20) UTF8'], ['TIMESERIES_COLUMN', 'DATE'], ['_META_COLUMN', 'DATE']]
+        self.engine.bootstrap('some_schema','some_table', {'key_column': 'VARCHAR(20) UTF8', 'timeseries_column': 'DATE', '_meta_column': 'DATE'})
         self.engine._select.assert_called_with(
             "SELECT COLUMN_NAME, COLUMN_TYPE FROM EXA_ALL_COLUMNS WHERE COLUMN_TABLE = 'SOME_TABLE' AND COLUMN_SCHEMA = 'SOME_SCHEMA'")
         self.engine._execute.assert_not_called()
@@ -102,35 +104,39 @@ class TestExasolEngine(TestCase):
         self.engine.delete_timeseries('some_schema', 'some_table', ['col_1', 'col_2'], where={'time_col': ('2017-02-28', '2017-04-01'), 'item_col': 'item'})
         self.engine._execute.assert_called_with("UPDATE some_schema.some_table SET col_1 = NULL, col_2 = NULL WHERE time_col BETWEEN '2017-02-28' AND '2017-04-01' AND item_col = 'item'")
 
-    @parameterized.expand([
-        ('MIN', "COALESCE(LEAST(tbl.val, tmp.src_val), tbl.val, tmp.src_val)"),
-        ('MAX', "COALESCE(GREATEST(tbl.val, tmp.src_val), tbl.val, tmp.src_val)"),
-        ('KEEP', "IFNULL(tbl.val, tmp.src_val)"),
-        ('REPLACE', "IFNULL(tmp.src_val, tbl.val)"),
-    ])
-    def test_merge_without_timeseries(self, update_type, stm):
-        self.engine.merge('some_tmp_table', 'some_schema', 'some_table', ['key_col'], {'val': 'src_val'}, {'val': update_type})
+    def test_merge_without_timeseries(self):
+        self.engine.merge('some_tmp_table', 'some_schema', 'some_table', {'k1': 'src_k1', 'k2': 'src_k2'}, {'cmin': 'src_cmin', 'cmax': 'src_cmax', 'ckeep': 'src_ckeep', 'creplace': 'src_creplace'}, {'cmin': 'MIN', 'cmax': 'MAX', 'ckeep': 'KEEP', 'creplace': 'REPLACE'}, 'time_key')
         self.engine._execute.assert_called_with("""MERGE INTO some_schema.some_table tbl
-USING (SELECT key_col, src_val FROM tmp_schema.some_tmp_table) tmp
-ON tbl.key_col = tmp.key_col
-WHEN MATCHED THEN
-UPDATE SET
-tbl.val = %s
+USING (SELECT DISTINCT
+k2, k1,
+FIRST_VALUE("_CKEEP_UPDATED_AT") OVER (PARTITION BY k2, k1 ORDER BY DECODE(ckeep, NULL, NULL, "_CKEEP_UPDATED_AT") ASC NULLS LAST) AS "_CKEEP_UPDATED_AT",
+FIRST_VALUE(ckeep) OVER (PARTITION BY k2, k1 ORDER BY DECODE(ckeep, NULL, NULL, "_CKEEP_UPDATED_AT") ASC NULLS LAST) AS ckeep,
+MAX(cmax) OVER (PARTITION BY k2, k1) AS cmax,
+MIN(cmin) OVER (PARTITION BY k2, k1) AS cmin,
+FIRST_VALUE("_CREPLACE_UPDATED_AT") OVER (PARTITION BY k2, k1 ORDER BY DECODE(creplace, NULL, NULL, "_CREPLACE_UPDATED_AT") DESC NULLS FIRST) AS "_CREPLACE_UPDATED_AT",
+FIRST_VALUE(creplace) OVER (PARTITION BY k2, k1 ORDER BY DECODE(creplace, NULL, NULL, "_CREPLACE_UPDATED_AT") DESC NULLS FIRST) AS creplace
+FROM (
+SELECT k2, k1, ckeep, cmax, cmin, creplace, "_CKEEP_UPDATED_AT", "_CREPLACE_UPDATED_AT" FROM some_schema.some_table a
+WHERE EXISTS (SELECT 1 FROM tmp_schema.some_tmp_table t WHERE a.k2 = t.src_k2 AND a.k1 = t.src_k1)
+UNION ALL
+SELECT src_k2, src_k1, src_ckeep, src_cmax, src_cmin, src_creplace, time_key, time_key FROM tmp_schema.some_tmp_table)) tmp
+ON tbl.k2 = tmp.k2 AND tbl.k1 = tmp.k1
+WHEN MATCHED THEN UPDATE SET
+tbl.ckeep = tmp.ckeep, tbl.cmax = tmp.cmax, tbl.cmin = tmp.cmin, tbl.creplace = tmp.creplace, tbl."_CKEEP_UPDATED_AT" = tmp."_CKEEP_UPDATED_AT", tbl."_CREPLACE_UPDATED_AT" = tmp."_CREPLACE_UPDATED_AT"
 WHEN NOT MATCHED THEN
-INSERT (key_col, val)
-VALUES (tmp.key_col, tmp.src_val)""" % stm)
+INSERT (k2, k1, ckeep, cmax, cmin, creplace, "_CKEEP_UPDATED_AT", "_CREPLACE_UPDATED_AT")
+VALUES (tmp.k2, tmp.k1, tmp.ckeep, tmp.cmax, tmp.cmin, tmp.creplace, tmp."_CKEEP_UPDATED_AT", tmp."_CREPLACE_UPDATED_AT")""")
 
     def test_merge_with_timeseries(self):
-        self.engine.merge('some_tmp_table', 'some_schema', 'some_table', ['key_col', 'time_col'], {'val_1': 'src_val_1', 'val_2': 'src_val_2'})
+        self.engine.merge('some_tmp_table', 'some_schema', 'some_table', {'key_col': 'tmp_key_col', 'time_col': 'tmp_time_col'}, {'val_1': 'src_val_1', 'val_2': 'src_val_2'})
         self.engine._execute.assert_called_with("""MERGE INTO some_schema.some_table tbl
-USING (SELECT key_col, time_col, src_val_1, src_val_2 FROM tmp_schema.some_tmp_table) tmp
-ON tbl.key_col = tmp.key_col AND tbl.time_col = tmp.time_col
-WHEN MATCHED THEN
-UPDATE SET
+USING (SELECT tmp_time_col, tmp_key_col, src_val_1, src_val_2 FROM tmp_schema.some_tmp_table) tmp
+ON tbl.time_col = tmp.tmp_time_col AND tbl.key_col = tmp.tmp_key_col
+WHEN MATCHED THEN UPDATE SET
 tbl.val_1 = tmp.src_val_1, tbl.val_2 = tmp.src_val_2
 WHEN NOT MATCHED THEN
-INSERT (key_col, time_col, val_1, val_2)
-VALUES (tmp.key_col, tmp.time_col, tmp.src_val_1, tmp.src_val_2)""")
+INSERT (time_col, key_col, val_1, val_2)
+VALUES (tmp.tmp_time_col, tmp.tmp_key_col, tmp.src_val_1, tmp.src_val_2)""")
 
     def test_purge(self):
         self.engine.purge('some_schema', 'some_table', ['col_1', 'col_2'], {'time_col': ('2017-01-31', '2017-02-28'), 'item_col': 'item'})

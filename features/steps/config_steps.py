@@ -85,7 +85,6 @@ def step_impl(context, id, dep_type):
 def step_impl(context, id, timeseries_key):
     conf = get_target_conf(context).get(id)
     conf['key_columns'] = conf.get('key_columns', {})
-    conf['key_columns']['datum'] = 'DATE'
     conf['timeseries_key'] = timeseries_key
 
 
@@ -110,4 +109,4 @@ def step_impl(context, target_id, aggregation_id):
     if not agg_conf:
         conf['aggregated_columns'] = agg_conf
     agg_conf[aggregation_id] = {'%s_column' % aggregation_id: None}
-    get_aggregation_conf(context)[aggregation_id] = {'query': 'SELECT * FROM DUAL'}
+    get_aggregation_conf(context)[aggregation_id] = {'query': 'SELECT * FROM DUAL', 'time_key': 'time_key'}

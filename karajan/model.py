@@ -100,7 +100,7 @@ class Target(ModelBase):
         else:
             self.validate_empty('items')
         if self.timeseries_key:
-            self.validate_in('timeseries_key', self.key_columns)
+            self.validate_not_in('timeseries_key', self.key_columns)
         for item_key in self.parameter_columns.values():
             validate_include(self.context.item_keys(), item_key)
 
@@ -155,7 +155,7 @@ class AggregatedColumn(ModelBase):
     max_update_type = 'MAX'
     _default_update_type = replace_update_type
     _update_types = {replace_update_type, keep_update_type, min_update_type, max_update_type}
-    _depends_on_past_update_types = {replace_update_type, keep_update_type}
+    depends_on_past_update_types = {replace_update_type, keep_update_type}
 
     def __init__(self, aggregation_id, column_name, conf):
         self.aggregation_id = aggregation_id
@@ -179,7 +179,7 @@ class AggregatedColumn(ModelBase):
         super(AggregatedColumn, self).validate()
 
     def depends_on_past(self):
-        return self.update_type in self._depends_on_past_update_types
+        return self.update_type in self.depends_on_past_update_types
 
 
 class Aggregation(ModelBase):
@@ -190,10 +190,12 @@ class Aggregation(ModelBase):
         self.offset = conf.get('offset', 0)
         self.reruns = conf.get('reruns', 0)
         self.parameterize = self._check_parameterize()
+        self.time_key = conf.get('time_key')
         super(Aggregation, self).__init__(name)
 
     def validate(self):
         self.validate_presence('query')
+        self.validate_presence('time_key')
         super(Aggregation, self).validate()
 
     def _check_parameterize(self):

@@ -48,6 +48,7 @@ def min_config():
         'aggregations': {
             'test': {
                 'query': "SELECT 'key' AS key_column, 'test_val' AS test_val FROM DUAL",
+                'time_key': 'time_key'
             }
         },
         'context': {},
