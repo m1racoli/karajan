@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, date, timedelta
 
 import airflow.bin.cli as cli
@@ -14,7 +15,7 @@ def run(args):
     # load DAGs and find KarajanDAGs
     dags = get_dags(args)
 
-    run_id = "karajan_run_{}".format(datetime.now())
+    run_id = "karajan_run_{}".format(datetime.now().strftime('%Y-%m-%dT%H:%M:%S'))
     start_date = args.start_date if args.start_date else yesterday()
     end_date = args.end_date if args.end_date else yesterday()
 
@@ -25,6 +26,7 @@ def run(args):
 
     # create DAG runs
     for dag in dags.values():
+        logging.info("trigger {} ({}) from {} to {}".format(dag.dag_id, run_id, start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d')))
         dag.create_dagrun(
             run_id=run_id,
             state=State.RUNNING,
@@ -57,10 +59,10 @@ class KarajanCLIFactory(cli.CLIFactory):
             "File location or directory from which to look for the dag",
             default=settings.DAGS_FOLDER),
         'start_date': cli.Arg(
-            ("-s", "--start_date"), "Override start_date YYYY-MM-DD",
+            ("-s", "--start_date"), "Set start_date YYYY-MM-DD",
             type=parsedate),
         'end_date': cli.Arg(
-            ("-e", "--end_date"), "Override end_date YYYY-MM-DD",
+            ("-e", "--end_date"), "Set end_date YYYY-MM-DD",
             type=parsedate),
     }
 
