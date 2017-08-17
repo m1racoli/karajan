@@ -5,8 +5,10 @@ from karajan.config import Config
 
 
 class KarajanBaseOperator(BaseOperator):
-    def __init__(self, *args, **kwargs):
-        super(KarajanBaseOperator, self).__init__(*args, **kwargs)
+    def __init__(self, dag=None, *args, **kwargs):
+        # some attributes of the task are inferred by the egnine coming from the DAG
+        kwargs.update(**dag.engine.task_attributes)
+        super(KarajanBaseOperator, self).__init__(*args, dag=dag, **kwargs)
 
     @property
     def engine(self):

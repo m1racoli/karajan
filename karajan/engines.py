@@ -12,6 +12,12 @@ from karajan.operators import *
 
 
 class BaseEngine(object):
+
+    def __init__(self, task_attributes=None):
+        if task_attributes is None:
+            task_attributes = {}
+        self.task_attributes = task_attributes
+
     def dependency_operator(self, task_id, dag, dep):
         if isinstance(dep, DeltaDependency):
             return self.delta_dependency_operator(task_id, dag, dep)
@@ -132,16 +138,17 @@ class BaseEngine(object):
 
 
 class ExasolEngine(BaseEngine):
-    def __init__(self, tmp_schema, conn_id=None, queue='default', retries=12, retry_delay=timedelta(seconds=300),
+    def __init__(self, tmp_schema, conn_id=None, queue='default', retries=60, retry_delay=timedelta(seconds=60),
                  autocommit=True):
         self.tmp_schema = tmp_schema
         self.conn_id = conn_id
         self.autocommit = autocommit
-        self.task_attributes = {
+        task_attributes = {
             'retries': retries,
             'retry_delay': retry_delay,
             'queue': queue,
         }
+        super(ExasolEngine, self).__init__(task_attributes=task_attributes)
 
     def tracking_dependency_operator(self, task_id, dag, dep):
         return SqlSensor(
