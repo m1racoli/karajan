@@ -27,7 +27,6 @@ def run(args):
     for dag in dags.values():
         dag.create_dagrun(
             run_id=run_id,
-            execution_date=end_date,
             state=State.RUNNING,
             conf=conf,
             external_trigger=True
