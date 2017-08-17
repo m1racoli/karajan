@@ -3,6 +3,7 @@ from datetime import datetime, date, timedelta
 import airflow.bin.cli as cli
 from airflow import settings
 from airflow.models import DagBag
+from airflow.utils.state import State
 from dateutil.parser import parse as parsedate
 
 from karajan.exceptions import KarajanException
@@ -24,10 +25,13 @@ def run(args):
 
     # create DAG runs
     for dag in dags.values():
-        cli.api_client.trigger_dag(dag_id=dag.dag_id,
-                                   run_id=run_id,
-                                   conf=conf,
-                                   execution_date=end_date)
+        dag.create_dagrun(
+            run_id=run_id,
+            execution_date=end_date,
+            state=State.RUNNING,
+            conf=conf,
+            external_trigger=True
+        )
 
 
 def yesterday():
