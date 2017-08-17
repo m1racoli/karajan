@@ -1,5 +1,5 @@
 import logging
-from airflow.models import BaseOperator
+from airflow.models import BaseOperator, TaskInstance
 from datetime import datetime, timedelta
 
 from karajan.config import Config
@@ -57,7 +57,9 @@ class KarajanDependencyOperator(KarajanBaseOperator):
         if context['dag_run'].external_trigger:
             logging.info("skipping dependency check due to external run")
             return
-        self.op.execute(context)
+        ti = TaskInstance(self.op, context['ds'])
+        ti.render_templates()
+        ti.task.execute(context)
 
 
 class KarajanAggregateOperator(KarajanBaseOperator):
