@@ -1,10 +1,10 @@
-from airflow.models import DAG
 from airflow.operators.dummy_operator import DummyOperator
 
 from karajan.dependencies import NothingDependency, get_dependency, TargetDependency
 from karajan.engines import BaseEngine
 from karajan.model import Target, Aggregation, Context, KarajanDAG
 from karajan.operators import *
+import karajan.validations as validations
 
 
 class Conductor(object):
@@ -16,6 +16,16 @@ class Conductor(object):
         self.context = Context(self.conf['context'])
         self.targets = {n: Target(n, c, self.context) for n, c in self.conf['targets'].iteritems()}
         self.aggregations = {n: Aggregation(n, c, self.context) for n, c in self.conf['aggregations'].iteritems()}
+        self._validate()
+
+    def _validate(self):
+        # validate target and aggregation names are disjoint
+        for a in self.aggregations:
+            validations.validate_exclude(self.targets, a)
+        # validate each target's aggregations are defined
+        for t in self.targets.values():
+            for a in t.aggregations:
+                validations.validate_include(self.aggregations, a)
 
     def build(self, dag_id, engine=BaseEngine(), output=None):
 
