@@ -21,10 +21,12 @@ MERGE_UPDATE_TYPES = {'test_column': 'REPLACE', 'another_test_column': 'MAX'}
 DESCRIBE_SRC_COLUMNS = {c: 'SOMETYPE' for c in SRC_COLUMNS}
 DESCRIBE_TARGET_COLUMNS = {'test_column': 'SOMETYPE', 'key_column': 'SOMETYPE', 'another_test_column': 'SOMETYPE',
                            'item_column': 'SOMETYPE', 'timeseries_column': 'SOMETYPE'}
-DESCRIBE_TARGET_COLUMNS_WITH_META = {'_test_column_updated_at': 'DATE', 'test_column': 'SOMETYPE', 'key_column': 'SOMETYPE', 'another_test_column': 'SOMETYPE',
-                           'item_column': 'SOMETYPE'}
+DESCRIBE_TARGET_COLUMNS_WITH_META = {'_test_column_updated_at': 'DATE', 'test_column': 'SOMETYPE',
+                                     'key_column': 'SOMETYPE', 'another_test_column': 'SOMETYPE',
+                                     'item_column': 'SOMETYPE'}
 PARAMETER_COLUMNS = {'date_col': date(2017, 1, 1),
                      'datetime_col': datetime(2017, 1, 1, 0, 0, 0),
                      'number_col': 42,
                      'bool_col': True,
                      }
+KARAJAN_ID = 'test_karajan_id'
