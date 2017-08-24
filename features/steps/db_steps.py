@@ -23,7 +23,8 @@ def step_impl(context):
     assert limit['test_table']
     assert 'test_column' in limit['test_table']
     assert limit['test_aggregation']
-    assert 'test_src_column' in limit['test_aggregation']
+    for src_column in ['key_column', 'test_src_column', 'test_time_key']:
+        assert src_column in limit['test_aggregation']
 
 
 def get_dag_runs(context, dag_id=defaults.KARAJAN_ID, state=State.RUNNING, external_trigger=True):
