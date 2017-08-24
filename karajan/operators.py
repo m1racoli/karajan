@@ -45,6 +45,31 @@ class KarajanBaseOperator(BaseOperator):
         self.params['end_date'] = ds_end.strftime("%Y-%m-%d")
         return self.params['start_date'], self.params['end_date']
 
+    @staticmethod
+    def is_not_in_limit(context, *names):
+        conf = context['dag_run'].conf
+        if conf is None:
+            return None
+        limit = conf.get('limit')
+        return limit and any(not limit[name] for name in names)
+
+    @staticmethod
+    def limited_columns(context, name, columns):
+        conf = context['dag_run'].conf
+        if conf is None:
+            return None
+        limit = conf.get('limit')
+        if not limit:
+            return columns
+        column_limit = limit[name]
+        if not column_limit:
+            return columns
+
+        if isinstance(columns, dict):
+            return {c: v for c,v in columns.iteritems() if c in column_limit}
+
+        return [c for c in columns if c in column_limit]
+
 
 class KarajanDependencyOperator(KarajanBaseOperator):
     ui_color = '#40c435'
@@ -74,11 +99,17 @@ class KarajanAggregateOperator(KarajanBaseOperator):
         super(KarajanAggregateOperator, self).__init__(*args, task_id=task_id, **kwargs)
 
     def execute(self, context):
+        if self.is_not_in_limit(context, self.aggregation.name):
+            logging.info("not part of limited run")
+            return
+
         self.set_execution_dates(context)
         query = Config.render(self.aggregation.query, self.params)
 
+        # filter columns by limit
+        columns = self.limited_columns(context, self.aggregation.name, self.columns)
+
         # set where and selected columns based on parametrization level
-        columns = self.columns
         where = None
         if self.params.get('item'):
             item = self.params['item']
@@ -101,6 +132,10 @@ class KarajanCleanupOperator(KarajanBaseOperator):
         super(KarajanCleanupOperator, self).__init__(*args, task_id=task_id, **kwargs)
 
     def execute(self, context):
+        if self.is_not_in_limit(context, self.aggregation.name):
+            logging.info("not part of limited run")
+            return
+
         self.engine.cleanup(self.tmp_table_name(context))
 
 
@@ -114,6 +149,9 @@ class KarajanMergeOperator(KarajanBaseOperator):
         super(KarajanMergeOperator, self).__init__(*args, task_id=task_id, **kwargs)
 
     def execute(self, context):
+        if self.is_not_in_limit(context, self.aggregation.name, self.target.name):
+            logging.info("not part of limited run")
+            return
         tmp_table_name = self.tmp_table_name(context)
         schema_name = self.target.schema
         table_name = self.target.name
@@ -139,7 +177,7 @@ class KarajanMergeOperator(KarajanBaseOperator):
         if self.target.is_timeseries():
             timeseries_column = self.target.timeseries_key
             date_range = self.set_execution_dates(context)
-            value_columns = self.target.aggregated_columns(self.aggregation.name).keys()
+            value_columns = self.limited_columns(context, self.target.name, self.target.aggregated_columns(self.aggregation.name).keys())
             where = {timeseries_column: date_range}
             if self.params.get('item'):
                 where[self.params.get('item_column')] = self.params.get('item')
@@ -158,6 +196,7 @@ class KarajanMergeOperator(KarajanBaseOperator):
                             self.target.aggregated_columns(self.aggregation.name).values()}
             time_key = self.aggregation.time_key
 
+        value_columns = self.limited_columns(context, self.target.name, value_columns)
         self.engine.merge(tmp_table_name, schema_name, table_name, key_columns, value_columns, update_types, time_key)
 
 
@@ -171,6 +210,10 @@ class KarajanFinishOperator(KarajanBaseOperator):
         super(KarajanFinishOperator, self).__init__(*args, task_id=task_id, **kwargs)
 
     def execute(self, context):
+        if self.is_not_in_limit(context, self.target.name):
+            logging.info("not part of limited run")
+            return
+
         schema_name = self.target.schema
         table_name = self.target.name
 

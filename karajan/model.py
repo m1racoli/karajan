@@ -254,11 +254,18 @@ class KarajanDAG(DAG):
 
             agg_limit = limit.get(ac.aggregation_id)
             if not agg_limit:
-                agg_limit = []
+                agg_limit = set(target.key_columns)
+                agg_limit.add(aggregation.time_key)
+                if self.item_column:
+                    agg_limit.add(self.item_column)
                 limit[ac.aggregation_id] = agg_limit
-            agg_limit.append(ac.src_column_name)
+            agg_limit.add(ac.src_column_name)
 
         return limit
+
+    @property
+    def item_column(self):
+        return self.params.get('item_column')
 
 
 class LimitFilter(object):
