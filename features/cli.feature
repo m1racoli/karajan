@@ -19,7 +19,7 @@ Feature: CLI
 
   Scenario: Run with items
 
-  @db @wip
+  @db
   Scenario: Run for target column
     When I trigger a Karajan run for a target column
     Then there should be an active DAG run
