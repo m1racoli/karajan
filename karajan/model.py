@@ -1,8 +1,10 @@
 import re
+from argparse import ArgumentTypeError
 from datetime import datetime, date
 
 from airflow.models import DAG
 
+from karajan.exceptions import KarajanException
 from validations import *
 
 
@@ -229,3 +231,66 @@ class KarajanDAG(DAG):
         self.aggregations = aggregations
         dag_id = "%s_%s" % (karajan_id, item) if item else karajan_id
         super(KarajanDAG, self).__init__(*args, dag_id=dag_id, catchup=False, **kwargs)
+
+    def limit(self, limit_filters):
+        if not limit_filters:
+            return None
+
+        if len(limit_filters) > 1:
+            raise KarajanException("multiple limit clauses are currently not supported")
+
+        filter = limit_filters[0]
+        limit = {filter.name: filter.columns}
+        target = self.targets.get(filter.name)
+        aggregated_columns = target.aggregated_columns()
+        assert target, "not target with ID {} found".format(filter.name)
+
+        for c in filter.columns:
+            ac = aggregated_columns.get(c)
+            assert ac, "column {} not found in target {}".format(c, target)
+
+            aggregation = self.aggregations.get(ac.aggregation_id)
+            assert aggregation, "aggregation {} not found".format(ac.aggregation_id)
+
+            agg_limit = limit.get(ac.aggregation_id)
+            if not agg_limit:
+                agg_limit = []
+                limit[ac.aggregation_id] = agg_limit
+            agg_limit.append(ac.src_column_name)
+
+        return limit
+
+
+class LimitFilter(object):
+
+    _pattern = re.compile(r"^(?P<name>[^\[\]]+)(\[(?P<cols>[^\[\]]*)\])?$")
+
+    @classmethod
+    def parse(cls, s):
+        """
+        :param s: String to parse
+        :type s: str
+        """
+        if not s:
+            return None
+
+        # TODO use different filter separator, since ';' doesn't really work in the command line
+        if ';' in s:
+            return [l for f in s.split(';') for l in cls.parse(f)]
+
+        if '[' in s or ']' in s:
+            m = cls._pattern.match(s)
+
+            if not m:
+                raise ArgumentTypeError('could not parse {}'.format(s))
+
+            return [cls(m.group('name'), m.group('cols').split(','))]
+        else:
+            return [cls(s)]
+
+    def __init__(self, name, columns=list()):
+        self.name = name
+        self.columns = columns
+
+    def __repr__(self):
+        return "LimitFilter({})".format(', '.join([self.name] + self.columns))

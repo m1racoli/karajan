@@ -8,7 +8,7 @@ from airflow.utils.state import State
 from dateutil.parser import parse as parsedate
 
 from karajan.exceptions import KarajanException
-from karajan.model import KarajanDAG
+from karajan.model import KarajanDAG, LimitFilter
 
 
 def run(args):
@@ -19,11 +19,6 @@ def run(args):
     start_date = args.start_date if args.start_date else yesterday()
     end_date = args.end_date if args.end_date else yesterday()
 
-    conf = {
-        'start_date': start_date,
-        'end_date': end_date,
-    }
-
     items = args.items
     if items:
         items = set(items.split(','))
@@ -32,6 +27,15 @@ def run(args):
     for dag in dags.values():
         if items and dag.item not in items:
             continue
+
+        conf = {
+            'start_date': start_date,
+            'end_date': end_date,
+        }
+
+        if args.limit:
+            conf['limit'] = dag.limit(args.limit)
+
         logging.info("trigger {} ({}) from {} to {}".format(dag.dag_id, run_id, start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d')))
         dag.create_dagrun(
             run_id=run_id,
@@ -72,13 +76,15 @@ class KarajanCLIFactory(cli.CLIFactory):
             type=parsedate),
         'items': cli.Arg(
             ("-i", "--items"), "Run for selected items"),
+        'limit': cli.Arg(
+            ("-l", "--limit"), "Limit calculations to a subset", type=LimitFilter.parse),
     }
 
     subparsers = (
         {
             'func': run,
             'help': "Trigger aggregations for a Karajan setup",
-            'args': ('karajan_id', 'subdir', 'start_date', 'end_date', 'items'),
+            'args': ('karajan_id', 'subdir', 'start_date', 'end_date', 'items', 'limit'),
         },
     )
     subparsers_dict = {sp['func'].__name__: sp for sp in subparsers}
