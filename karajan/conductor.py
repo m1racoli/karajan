@@ -44,8 +44,10 @@ class Conductor(object):
                 item,
                 targets,
                 aggregations,
-                start_date=item_start_date)
-            self._build_dag(params, dag)
+                start_date=item_start_date,
+                params=params,
+            )
+            self._build_dag(dag)
             dags[dag.dag_id] = dag
 
         if output is not None:
@@ -54,7 +56,7 @@ class Conductor(object):
         return dags
 
     @staticmethod
-    def _build_dag(params, dag):
+    def _build_dag(dag):
         init = DummyOperator(task_id='init', dag=dag)
         done = DummyOperator(task_id='done', dag=dag)
 
@@ -71,7 +73,6 @@ class Conductor(object):
             retrospec = max(agg.retrospec() for agg in aggregations if agg.name in target.aggregations)
             finish_operator = KarajanFinishOperator(
                 dag=dag,
-                params=params,
                 target=target,
                 retrospec=retrospec
             )
@@ -84,13 +85,12 @@ class Conductor(object):
             aggregation_operator = KarajanAggregateOperator(
                 aggregation=aggregation,
                 columns=list(src_column_names),
-                params=params,
                 dag=dag
             )
 
             aggregation_operators[aggregation.name] = aggregation_operator
 
-            for dependency in Conductor._get_dependencies(aggregation, params):
+            for dependency in Conductor._get_dependencies(aggregation, dag.params):
                 if isinstance(dependency, TargetDependency):
                     target_dependencies[aggregation.name] = target_dependencies.get(aggregation.name, [])
                     target_dependencies[aggregation.name].append(dependency)
@@ -104,7 +104,6 @@ class Conductor(object):
 
             clean_operator = KarajanCleanupOperator(
                 aggregation=aggregation,
-                params=params,
                 dag=dag
             )
             clean_operator.set_downstream(done)
@@ -116,7 +115,6 @@ class Conductor(object):
                 merge_operator = KarajanMergeOperator(
                     aggregation=aggregation,
                     target=target,
-                    params=params,
                     dag=dag,
                 )
                 merge_operators[(aggregation.name, target.name)] = merge_operator
