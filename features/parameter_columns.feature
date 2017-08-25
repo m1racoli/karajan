@@ -12,7 +12,7 @@ Feature: Parameter columns
       | platform |
       | platform |
     When I build the DAGs
-    Then in the DAG test finish_test should depend on merge_test_test
+    Then in the DAG test finish_test should depend on merge_test_agg_test
     And in the DAG test done should depend on finish_test
 
   Scenario: Parameterized context
@@ -25,8 +25,8 @@ Feature: Parameter columns
       | family      |
     And the target test has the items of the context
     When I build the DAGs
-    Then in the DAG test_g9 finish_test should depend on merge_test_test
-    And in the DAG test_pl finish_test should depend on merge_test_test
+    Then in the DAG test_g9 finish_test should depend on merge_test_agg_test
+    And in the DAG test_pl finish_test should depend on merge_test_agg_test
     And in the DAG test_g9 done should depend on finish_test
     And in the DAG test_pl done should depend on finish_test
 
@@ -39,9 +39,9 @@ Feature: Parameter columns
       | game_family |
       | family      |
     And the target test has the items of the context
-    And the aggregation test is parameterized
+    And the aggregation test_agg is parameterized
     When I build the DAGs
-    Then in the DAG test_g9 finish_test should depend on merge_test_test
-    And in the DAG test_pl finish_test should depend on merge_test_test
+    Then in the DAG test_g9 finish_test should depend on merge_test_agg_test
+    And in the DAG test_pl finish_test should depend on merge_test_agg_test
     And in the DAG test_g9 done should depend on finish_test
     And in the DAG test_pl done should depend on finish_test

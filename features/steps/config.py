@@ -39,14 +39,14 @@ def min_config():
                     'key_column',
                 ],
                 'aggregated_columns': {
-                    'test': {
+                    'test_agg': {
                         'test_val': None,
                     },
                 }
             }
         },
         'aggregations': {
-            'test': {
+            'test_agg': {
                 'query': "SELECT 'key' AS key_column, 'test_val' AS test_val FROM DUAL",
                 'time_key': 'time_key'
             }

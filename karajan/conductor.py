@@ -1,10 +1,10 @@
-from airflow.models import DAG
 from airflow.operators.dummy_operator import DummyOperator
 
 from karajan.dependencies import NothingDependency, get_dependency, TargetDependency
 from karajan.engines import BaseEngine
 from karajan.model import Target, Aggregation, Context, KarajanDAG
 from karajan.operators import *
+import karajan.validations as validations
 
 
 class Conductor(object):
@@ -16,6 +16,16 @@ class Conductor(object):
         self.context = Context(self.conf['context'])
         self.targets = {n: Target(n, c, self.context) for n, c in self.conf['targets'].iteritems()}
         self.aggregations = {n: Aggregation(n, c, self.context) for n, c in self.conf['aggregations'].iteritems()}
+        self._validate()
+
+    def _validate(self):
+        # validate target and aggregation names are disjoint
+        for a in self.aggregations:
+            validations.validate_exclude(self.targets, a)
+        # validate each target's aggregations are defined
+        for t in self.targets.values():
+            for a in t.aggregations:
+                validations.validate_include(self.aggregations, a)
 
     def build(self, dag_id, engine=BaseEngine(), output=None):
 
@@ -26,8 +36,18 @@ class Conductor(object):
 
         for item, params in self.context.params().iteritems():
             item_start_date = min(t.start_date for t in self.targets.values() if t.has_item(item))
-            dag = KarajanDAG(dag_id, engine, item, start_date=item_start_date)
-            self._build_subdag(params, dag)
+            targets = {t.name: t for t in self.targets.values() if t.has_item(item)}
+            aggregations = {a: self.aggregations[a] for a in {a for t in targets.values() for a in t.aggregations}}
+            dag = KarajanDAG(
+                dag_id,
+                engine,
+                item,
+                targets,
+                aggregations,
+                start_date=item_start_date,
+                params=params,
+            )
+            self._build_dag(dag)
             dags[dag.dag_id] = dag
 
         if output is not None:
@@ -35,12 +55,13 @@ class Conductor(object):
 
         return dags
 
-    def _build_subdag(self, params, dag):
+    @staticmethod
+    def _build_dag(dag):
         init = DummyOperator(task_id='init', dag=dag)
         done = DummyOperator(task_id='done', dag=dag)
 
-        targets = [t for t in self.targets.values() if t.has_item(dag.item)]
-        aggregations = [self.aggregations[a] for a in {a for t in targets for a in t.aggregations}]
+        targets = dag.targets.values()
+        aggregations = dag.aggregations.values()
         aggregation_operators = {}
         merge_operators = {}
         dependency_operators = {}
@@ -52,7 +73,6 @@ class Conductor(object):
             retrospec = max(agg.retrospec() for agg in aggregations if agg.name in target.aggregations)
             finish_operator = KarajanFinishOperator(
                 dag=dag,
-                params=params,
                 target=target,
                 retrospec=retrospec
             )
@@ -65,13 +85,12 @@ class Conductor(object):
             aggregation_operator = KarajanAggregateOperator(
                 aggregation=aggregation,
                 columns=list(src_column_names),
-                params=params,
                 dag=dag
             )
 
             aggregation_operators[aggregation.name] = aggregation_operator
 
-            for dependency in self._get_dependencies(aggregation, params):
+            for dependency in Conductor._get_dependencies(aggregation, dag.params):
                 if isinstance(dependency, TargetDependency):
                     target_dependencies[aggregation.name] = target_dependencies.get(aggregation.name, [])
                     target_dependencies[aggregation.name].append(dependency)
@@ -85,7 +104,6 @@ class Conductor(object):
 
             clean_operator = KarajanCleanupOperator(
                 aggregation=aggregation,
-                params=params,
                 dag=dag
             )
             clean_operator.set_downstream(done)
@@ -97,7 +115,6 @@ class Conductor(object):
                 merge_operator = KarajanMergeOperator(
                     aggregation=aggregation,
                     target=target,
-                    params=params,
                     dag=dag,
                 )
                 merge_operators[(aggregation.name, target.name)] = merge_operator
@@ -108,8 +125,8 @@ class Conductor(object):
         for aggregation_id, dependencies in target_dependencies.iteritems():
             aggregation_operator = aggregation_operators[aggregation_id]
             for target_dependency in dependencies:
-                target = self.targets[target_dependency.target]
-                if not target.has_item(dag.item):
+                target = dag.targets[target_dependency.target]
+                if not target:
                     # nothing to wait for for this item
                     continue
                 for agg_id in target.aggregations_for_columns(target_dependency.columns):
