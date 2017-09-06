@@ -1,9 +1,7 @@
-import logging
 from datetime import date
 
 from airflow.hooks.jdbc_hook import JdbcHook
 from airflow.operators.dummy_operator import DummyOperator
-from airflow.operators.jdbc_operator import JdbcOperator
 from airflow.operators.sensors import SqlSensor, TimeDeltaSensor, ExternalTaskSensor
 
 from karajan.dependencies import *
@@ -12,7 +10,6 @@ from karajan.operators import *
 
 
 class BaseEngine(object):
-
     def __init__(self, task_attributes=None):
         if task_attributes is None:
             task_attributes = {}
@@ -102,7 +99,8 @@ class BaseEngine(object):
         """
         raise NotImplementedError()
 
-    def merge(self, tmp_table_name, schema_name, table_name, key_columns, value_columns, update_types=None, time_key=None):
+    def merge(self, tmp_table_name, schema_name, table_name, key_columns, value_columns, update_types=None,
+              time_key=None):
         """
 
         :type tmp_table_name: str
@@ -185,7 +183,7 @@ class ExasolEngine(BaseEngine):
             elif isinstance(val, list):
                 return "%s IN (%s)" % (col, ', '.join([ExasolEngine.db_str(v) for v in val]))
             else:
-                return "%s = %s" % (col,  ExasolEngine.db_str(val))
+                return "%s = %s" % (col, ExasolEngine.db_str(val))
 
         return "WHERE %s" % (' AND '.join([clause(c, v) for c, v in d.iteritems()]))
 
@@ -226,6 +224,15 @@ class ExasolEngine(BaseEngine):
     def describe(self, tmp_table_name):
         return self._describe_columns(self.tmp_schema, tmp_table_name)
 
+    def _evolve_column(self, required, existing=None):
+        required = ExasolEngine.ColumnType.parse(required)
+        existing = ExasolEngine.ColumnType.parse(existing)
+
+        if existing:
+            return existing.evolve_type_def(required)
+        else:
+            return required.type_def()
+
     def bootstrap(self, schema_name, table_name, columns):
         """
 
@@ -239,19 +246,22 @@ class ExasolEngine(BaseEngine):
             ddl = "CREATE TABLE {schema}.{table} ({col_defs})".format(
                 table=table_name.upper(),
                 schema=schema_name.upper(),
-                col_defs=', '.join("%s %s DEFAULT NULL" % (self.col_escape(c.upper()), t) for c, t in columns.iteritems())
+                col_defs=', '.join(
+                    "%s %s DEFAULT NULL" % (self.col_escape(c.upper()), self._evolve_column(t)) for c, t in
+                    columns.iteritems())
             )
             self._execute(ddl)
         else:
             # table exists
             ddl = []
-            for column in columns:
-                if column not in result:
+            for column, column_type in columns.iteritems():
+                target_type = self._evolve_column(column_type, result.get(column))
+                if target_type:
                     ddl.append("ALTER TABLE {schema}.{table} ADD COLUMN {col} {ctype} DEFAULT NULL".format(
                         schema=schema_name.upper(),
                         table=table_name.upper(),
                         col=self.col_escape(column.upper()),
-                        ctype=columns[column],
+                        ctype=target_type,
                     ))
             if ddl:
                 self._execute(ddl)
@@ -265,7 +275,8 @@ class ExasolEngine(BaseEngine):
         )
         self._execute(sql)
 
-    def merge(self, tmp_table_name, schema_name, table_name, key_columns, value_columns, update_types=None, time_key=None):
+    def merge(self, tmp_table_name, schema_name, table_name, key_columns, value_columns, update_types=None,
+              time_key=None):
         def update_op(col, key_cols, update_type):
             if update_type == 'REPLACE':
                 return """FIRST_VALUE("{updated_at}") OVER (PARTITION BY {key_cols} ORDER BY DECODE({col}, NULL, NULL, "{updated_at}") DESC NULLS FIRST) AS "{updated_at}",
@@ -285,8 +296,10 @@ FIRST_VALUE({col}) OVER (PARTITION BY {key_cols} ORDER BY DECODE({col}, NULL, NU
 
         if update_types:
             key_cols = key_columns.keys()
-            val_cols = value_columns.keys() + [self.col_escape('_%s_UPDATED_AT' % c.upper()) for c in value_columns.keys() if update_types[c] in AggregatedColumn.depends_on_past_update_types]
-            all_cols = key_cols +  val_cols
+            val_cols = value_columns.keys() + [self.col_escape('_%s_UPDATED_AT' % c.upper()) for c in
+                                               value_columns.keys() if
+                                               update_types[c] in AggregatedColumn.depends_on_past_update_types]
+            all_cols = key_cols + val_cols
             select = """SELECT DISTINCT
 {key_cols},
 {update_val_cols}
@@ -296,14 +309,18 @@ WHERE EXISTS (SELECT 1 FROM {tmp_schema}.{tmp_table} t WHERE {exists_where})
 UNION ALL
 SELECT {src_cols} FROM {tmp_schema}.{tmp_table})""".format(
                 key_cols=', '.join(key_cols),
-                update_val_cols=',\n'.join(update_op(c, ', '.join(key_cols), update_types[c]) for c in value_columns.keys()),
+                update_val_cols=',\n'.join(
+                    update_op(c, ', '.join(key_cols), update_types[c]) for c in value_columns.keys()),
                 all_cols=', '.join(all_cols),
                 schema=schema_name,
                 table=table_name,
                 tmp_schema=self.tmp_schema,
                 tmp_table=tmp_table_name,
                 exists_where=' AND '.join('a.%s = t.%s' % (a, t) for a, t in key_columns.iteritems()),
-                src_cols=', '.join(key_columns.values() + value_columns.values() + [time_key for c in value_columns.keys() if update_types[c] in AggregatedColumn.depends_on_past_update_types])
+                src_cols=', '.join(
+                    key_columns.values() + value_columns.values() + [time_key for c in value_columns.keys() if
+                                                                     update_types[
+                                                                         c] in AggregatedColumn.depends_on_past_update_types])
             )
             on_cols = ' AND '.join("tbl.%s = tmp.%s" % (c, c) for c in key_columns.keys())
             set_cols = ', '.join('tbl.%s = tmp.%s' % (c, c) for c in val_cols)
@@ -361,3 +378,69 @@ VALUES ({in_vals})""".format(
                 where=self._where(where)
             ))
         self._execute(sql)
+
+    class ColumnType(object):
+
+        @classmethod
+        def parse(cls, s):
+            if not s:
+                return None
+            if ExasolEngine.StringColumnType.matches(s):
+                return ExasolEngine.StringColumnType(s)
+            return ExasolEngine.GenericColumnType(s)
+
+        @classmethod
+        def matches(cls, s):
+            raise NotImplementedError()
+
+        def evolve_type_def(self, other):
+            raise NotImplementedError()
+
+        def type_def(self):
+            raise NotImplementedError()
+
+    class GenericColumnType(ColumnType):
+
+        def type_def(self):
+            return self.s
+
+        def evolve_type_def(self, other):
+            return None
+
+        @classmethod
+        def matches(cls, s):
+            return True
+
+        def __init__(self, s):
+            self.s = s
+
+    class StringColumnType(ColumnType):
+
+        pattern = re.compile(r"^(?P<name>VARCHAR|CHAR)\((?P<n>[0-9]+)\)( (?P<encoding>UTF8|ASCII))?$")
+
+        def __init__(self, s):
+            match = self.matches(s)
+            self.n = int(match.group('n'))
+            self.name = match.group('name')
+            self.encoding = match.group('encoding')
+
+        @classmethod
+        def matches(cls, s):
+            return cls.pattern.match(s)
+
+        def evolve_type_def(self, other):
+            if not isinstance(other, self.__class__):
+                # the new type is different, most of the times this will work at least
+                return None
+            if other.n > self.n:
+                self.n = other.n
+                return self.type_def()
+            if self.need_change():
+                return self.type_def()
+            return None
+
+        def need_change(self):
+            return self.name == 'CHAR' or self.encoding == 'ASCII'
+
+        def type_def(self):
+            return "VARCHAR(%d) UTF8" % self.n
