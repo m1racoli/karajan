@@ -122,6 +122,9 @@ class KarajanAggregateOperator(KarajanBaseOperator):
 
         self.engine.aggregate(self.tmp_table_name(context), columns, query, where)
 
+        for transformation in self.aggregation.transformations:
+            self.engine.apply_transformation(self.tmp_table_name(context), transformation)
+
 
 class KarajanCleanupOperator(KarajanBaseOperator):
     ui_color = '#4255ff'

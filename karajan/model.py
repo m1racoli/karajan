@@ -4,6 +4,7 @@ from datetime import datetime, date
 
 from airflow.models import DAG
 
+from karajan import transformations as tf
 from karajan.exceptions import KarajanException
 from validations import *
 
@@ -193,6 +194,7 @@ class Aggregation(ModelBase):
         self.reruns = conf.get('reruns', 0)
         self.parameterize = self._check_parameterize()
         self.time_key = conf.get('time_key')
+        self.transformations = [tf.get(tc) for tc in conf.get('transformations', [])]
         super(Aggregation, self).__init__(name)
 
     def validate(self):
@@ -220,6 +222,16 @@ class Aggregation(ModelBase):
 
     def retrospec(self):
         return self.offset + self.reruns
+
+    def transformation_upstream_columns(self, column):
+        downstream = set(column)
+        result = set()
+        for t in reversed(self.transformations):
+            for d in downstream:
+                for u in t.columns.get(d, []):
+                    downstream.add(u)
+                    result.add(u)
+        return result
 
 
 class KarajanDAG(DAG):
@@ -260,6 +272,10 @@ class KarajanDAG(DAG):
                     agg_limit.add(self.item_column)
                 limit[ac.aggregation_id] = agg_limit
             agg_limit.add(ac.src_column_name)
+
+            # a column can depend on other columns via transformations
+            for tuc in aggregation.transformation_upstream_columns(ac.src_column_name):
+                agg_limit.add(tuc)
 
         return limit
 
