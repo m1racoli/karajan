@@ -160,7 +160,7 @@ class KarajanMergeOperator(KarajanBaseOperator):
         src_columns_defs = self.engine.describe(tmp_table_name)
         # map source column definitions to target columns
         columns_defs = {ac.name: src_columns_defs[ac.src_column_name] for ac in
-                   self.limited_columns(self.target.aggregated_columns(self.aggregation.name)).values()}
+                   self.limited_columns(context, self.target.name, self.target.aggregated_columns(self.aggregation.name)).values()}
         for kc in self.target.key_columns:
             columns_defs[kc] = src_columns_defs[kc]
         if self.target.is_timeseries():
