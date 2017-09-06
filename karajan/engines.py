@@ -133,6 +133,15 @@ class BaseEngine(object):
         """
         raise NotImplementedError()
 
+    def apply_transformation(self, tmp_table_name, transformation):
+        """
+
+        :type tmp_table_name: str
+        :type transformation: karajan.transformations.BaseTransformation
+        :return:
+        """
+        raise NotImplementedError()
+
 
 class ExasolEngine(BaseEngine):
     def __init__(self, tmp_schema, conn_id=None, queue='default', retries=60, retry_delay=timedelta(seconds=60),
@@ -379,6 +388,10 @@ VALUES ({in_vals})""".format(
                 val=self.db_str(val),
                 where=self._where(where)
             ))
+        self._execute(sql)
+
+    def apply_transformation(self, tmp_table_name, transformation):
+        sql = transformation.tranform('%s.%s' % (self.tmp_schema, tmp_table_name))
         self._execute(sql)
 
     class ColumnType(object):
