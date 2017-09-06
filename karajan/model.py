@@ -224,13 +224,15 @@ class Aggregation(ModelBase):
         return self.offset + self.reruns
 
     def transformation_upstream_columns(self, column):
-        downstream = set(column)
+        downstream = {column}
         result = set()
         for t in reversed(self.transformations):
+            added = set()
             for d in downstream:
                 for u in t.columns.get(d, []):
-                    downstream.add(u)
-                    result.add(u)
+                    added.add(u)
+            result.update(added)
+            downstream.update(added)
         return result
 
 
