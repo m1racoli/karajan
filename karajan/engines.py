@@ -391,7 +391,7 @@ VALUES ({in_vals})""".format(
         self._execute(sql)
 
     def apply_transformation(self, tmp_table_name, transformation):
-        sql = transformation.tranform('%s.%s' % (self.tmp_schema, tmp_table_name))
+        sql = transformation.transform('%s.%s' % (self.tmp_schema, tmp_table_name))
         self._execute(sql)
 
     class ColumnType(object):
