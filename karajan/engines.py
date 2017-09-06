@@ -255,13 +255,15 @@ class ExasolEngine(BaseEngine):
             # table exists
             ddl = []
             for column, column_type in columns.iteritems():
+                modify = 'MODIFY' if column in result else 'ADD'
                 target_type = self._evolve_column(column_type, result.get(column))
                 if target_type:
-                    ddl.append("ALTER TABLE {schema}.{table} ADD COLUMN {col} {ctype} DEFAULT NULL".format(
+                    ddl.append("ALTER TABLE {schema}.{table} {modify} COLUMN {col} {ctype} DEFAULT NULL".format(
                         schema=schema_name.upper(),
                         table=table_name.upper(),
                         col=self.col_escape(column.upper()),
                         ctype=target_type,
+                        modify=modify,
                     ))
             if ddl:
                 self._execute(ddl)
