@@ -218,3 +218,24 @@ VALUES (tmp.tmp_time_col, tmp.tmp_key_col, tmp.src_val_1, tmp.src_val_2)""")
         assert_equal(queue, op.queue)
         assert_equal(retries, op.retries)
         assert_equal(retry_delay, op.retry_delay)
+
+    @parameterized.expand([
+        ('CHAR(3) ASCII', None, 'VARCHAR(3) UTF8'),
+        ('CHAR(3) ASCII', 'CHAR(3) ASCII', 'VARCHAR(3) UTF8'),
+        ('CHAR(2) ASCII', 'CHAR(3) ASCII', 'VARCHAR(3) UTF8'),
+        ('CHAR(3) ASCII', 'CHAR(2) ASCII', 'VARCHAR(3) UTF8'),
+        ('CHAR(3) ASCII', 'VARCHAR(2) UTF8', 'VARCHAR(3) UTF8'),
+        ('CHAR(2) ASCII', 'VARCHAR(3) UTF8', None),
+        ('CHAR(3) ASCII', 'VARCHAR(3) UTF8', None),
+        ('VARCHAR(3) ASCII', None, 'VARCHAR(3) UTF8'),
+        ('VARCHAR(3) ASCII', 'VARCHAR(3) ASCII', 'VARCHAR(3) UTF8'),
+        ('VARCHAR(3) ASCII', 'VARCHAR(2) UTF8', 'VARCHAR(3) UTF8'),
+        ('VARCHAR(3) UTF8', 'VARCHAR(2) UTF8', 'VARCHAR(3) UTF8'),
+        ('VARCHAR(3) ASCII', 'VARCHAR(3) UTF8', None),
+        ('VARCHAR(3) UTF8', 'VARCHAR(3) UTF8', None),
+        ('VARCHAR(2) UTF8', 'VARCHAR(3) UTF8', None),
+        ('VARCHAR(3)', 'VARCHAR(3) UTF8', None),
+        ('VARCHAR(3) UTF8', 'VARCHAR(3)', None),
+    ])
+    def test_evolve_column(self, required, existing, result):
+        assert_equal(result, self.engine._evolve_column(required, existing), "{} and {} should result in {}, the result was {}".format(required, existing, result, self.engine._evolve_column(required, existing)))
