@@ -4,6 +4,7 @@ from datetime import datetime, date
 
 from airflow.models import DAG
 
+from karajan import transformations as tf
 from karajan.exceptions import KarajanException
 from validations import *
 
@@ -193,6 +194,7 @@ class Aggregation(ModelBase):
         self.reruns = conf.get('reruns', 0)
         self.parameterize = self._check_parameterize()
         self.time_key = conf.get('time_key')
+        self.transformations = [tf.get(tc) for tc in conf.get('transformations', [])]
         super(Aggregation, self).__init__(name)
 
     def validate(self):
