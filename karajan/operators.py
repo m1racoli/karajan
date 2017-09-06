@@ -157,21 +157,21 @@ class KarajanMergeOperator(KarajanBaseOperator):
         table_name = self.target.name
 
         # get source column definitions from tmp table
-        src_columns = self.engine.describe(tmp_table_name)
+        src_columns_defs = self.engine.describe(tmp_table_name)
         # map source column definitions to target columns
-        columns = {ac.name: src_columns[ac.src_column_name] for ac in
+        columns_defs = {ac.name: src_columns_defs[ac.src_column_name] for ac in
                    self.limited_columns(self.target.aggregated_columns(self.aggregation.name)).values()}
         for kc in self.target.key_columns:
-            columns[kc] = src_columns[kc]
+            columns_defs[kc] = src_columns_defs[kc]
         if self.target.is_timeseries():
-            columns[self.target.timeseries_key] = src_columns[self.aggregation.time_key]
+            columns_defs[self.target.timeseries_key] = src_columns_defs[self.aggregation.time_key]
         else:
             for ac in self.target.aggregated_columns(self.aggregation.name).values():
                 if ac.depends_on_past():
-                    columns['_%s_updated_at' % ac.name] = 'DATE'
+                    columns_defs['_%s_updated_at' % ac.name] = 'DATE'
 
         # bootstrap table and columns
-        self.engine.bootstrap(schema_name, table_name, columns)
+        self.engine.bootstrap(schema_name, table_name, columns_defs)
 
         # delete existing timeseries data
         if self.target.is_timeseries():
