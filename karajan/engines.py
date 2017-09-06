@@ -279,8 +279,8 @@ class ExasolEngine(BaseEngine):
               time_key=None):
         def update_op(col, key_cols, update_type):
             if update_type == 'REPLACE':
-                return """FIRST_VALUE("{updated_at}") OVER (PARTITION BY {key_cols} ORDER BY DECODE({col}, NULL, NULL, "{updated_at}") DESC NULLS FIRST) AS "{updated_at}",
-FIRST_VALUE({col}) OVER (PARTITION BY {key_cols} ORDER BY DECODE({col}, NULL, NULL, "{updated_at}") DESC NULLS FIRST) AS {col}""".format(
+                return """FIRST_VALUE("{updated_at}") OVER (PARTITION BY {key_cols} ORDER BY DECODE({col}, NULL, NULL, "{updated_at}") DESC NULLS LAST) AS "{updated_at}",
+FIRST_VALUE({col}) OVER (PARTITION BY {key_cols} ORDER BY DECODE({col}, NULL, NULL, "{updated_at}") DESC NULLS LAST) AS {col}""".format(
                     col=col, key_cols=key_cols, updated_at='_%s_UPDATED_AT' % col.upper())
             elif update_type == 'KEEP':
                 return """FIRST_VALUE("{updated_at}") OVER (PARTITION BY {key_cols} ORDER BY DECODE({col}, NULL, NULL, "{updated_at}") ASC NULLS LAST) AS "{updated_at}",
