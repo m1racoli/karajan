@@ -57,7 +57,7 @@ class KarajanBaseOperator(BaseOperator):
     def limited_columns(context, name, columns):
         conf = context['dag_run'].conf
         if conf is None:
-            return None
+            return columns
         limit = conf.get('limit')
         if not limit:
             return columns
