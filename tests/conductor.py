@@ -24,7 +24,7 @@ class TestConductor(TestCase):
             dag_id=dag_id,
             run_id="karajan_run_%s" % datetime.now(),
             external_trigger=external_trigger,
-            conf={'start_date': defaults.EXTERNAL_START_DATE, 'end_date': defaults.EXTERNAL_END_DATE} if external_trigger else {},
+            conf={'start_date': defaults.EXTERNAL_START_DATE, 'end_date': defaults.EXTERNAL_END_DATE} if external_trigger else None,
             execution_date=defaults.EXTERNAL_EXECUTION_DATE if external_trigger else datetime.now(),
             state='running'
         )
