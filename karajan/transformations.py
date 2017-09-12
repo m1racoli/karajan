@@ -1,3 +1,4 @@
+from karajan.config import Config
 from karajan.validations import Validatable
 
 
@@ -10,7 +11,7 @@ class BaseTransformation(object, Validatable):
     def validate(self):
         self.validate_presence('columns')
 
-    def transform(self, tmp_table):
+    def transform(self, tmp_table, params):
         raise NotImplementedError()
 
 
@@ -22,15 +23,33 @@ class UpdateTransformation(BaseTransformation):
     def validate(self):
         self.validate_presence('query')
 
-    def transform(self, tmp_table):
-        return "UPDATE {tmp_table}\n{query}".format(
+    def transform(self, tmp_table, params):
+        sql = "UPDATE {tmp_table}\n{query}".format(
             tmp_table=tmp_table,
             query=self.query
         )
+        return Config.render(sql, params)
+
+
+class MergeTransformation(BaseTransformation):
+    def __init__(self, conf):
+        self.query = conf.get('query')
+        super(MergeTransformation, self).__init__(conf)
+
+    def validate(self):
+        self.validate_presence('query')
+
+    def transform(self, tmp_table, params):
+        sql = "MERGE INTO {tmp_table} tmp\n{query}".format(
+            tmp_table=tmp_table,
+            query=self.query
+        )
+        return Config.render(sql, params)
 
 
 t_map = {
     'update': UpdateTransformation,
+    'merge': MergeTransformation,
 }
 
 

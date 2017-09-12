@@ -123,7 +123,7 @@ class KarajanAggregateOperator(KarajanBaseOperator):
         self.engine.aggregate(self.tmp_table_name(context), columns, query, where)
 
         for transformation in self.aggregation.transformations:
-            self.engine.apply_transformation(self.tmp_table_name(context), transformation)
+            self.engine.apply_transformation(self.tmp_table_name(context), transformation, self.params)
 
 
 class KarajanCleanupOperator(KarajanBaseOperator):

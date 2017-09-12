@@ -133,11 +133,12 @@ class BaseEngine(object):
         """
         raise NotImplementedError()
 
-    def apply_transformation(self, tmp_table_name, transformation):
+    def apply_transformation(self, tmp_table_name, transformation, params):
         """
 
         :type tmp_table_name: str
         :type transformation: karajan.transformations.BaseTransformation
+        :type params: dict
         :return:
         """
         raise NotImplementedError()
@@ -390,8 +391,8 @@ VALUES ({in_vals})""".format(
             ))
         self._execute(sql)
 
-    def apply_transformation(self, tmp_table_name, transformation):
-        sql = transformation.transform('%s.%s' % (self.tmp_schema, tmp_table_name))
+    def apply_transformation(self, tmp_table_name, transformation, params):
+        sql = transformation.transform('%s.%s' % (self.tmp_schema, tmp_table_name), params)
         self._execute(sql)
 
     class ColumnType(object):
