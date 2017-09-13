@@ -230,7 +230,7 @@ class Aggregation(ModelBase):
             if t.applies_to(result):
                 transformations.append(t)
                 result.update(t.columns.keys())
-                for v in t.columns.values:
+                for v in t.columns.values():
                     result.update(v)
         return result, reversed(transformations)
 
