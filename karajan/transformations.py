@@ -14,6 +14,11 @@ class BaseTransformation(object, Validatable):
     def transform(self, tmp_table, params):
         raise NotImplementedError()
 
+    def applies_to(self, columns):
+        if any(c in self.columns for c in columns):
+            return True
+        return False
+
 
 class UpdateTransformation(BaseTransformation):
     def __init__(self, conf):

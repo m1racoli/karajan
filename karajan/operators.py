@@ -109,20 +109,26 @@ class KarajanAggregateOperator(KarajanBaseOperator):
         # filter columns by limit
         columns = self.limited_columns(context, self.aggregation.name, self.columns)
 
+        # get us all required columns and transformations
+        columns, transformations = self.aggregation.transformation_upstream_columns(columns)
+
         # set where and selected columns based on parametrization level
         where = None
         if self.params.get('item'):
             item = self.params['item']
             item_column = self.params['item_column']
             if self.aggregation.parameterize:
-                columns = [n if n != item_column else "'%s' as %s" % (item, item_column) for n in
-                           columns]
+                columns = {n if n != item_column else "'%s' as %s" % (item, item_column) for n in
+                           columns}
             else:
                 where = {item_column: item}
 
+        # cleanup potentially existing table in case of retries
+        self.engine.cleanup(self.tmp_table_name(context))
+
         self.engine.aggregate(self.tmp_table_name(context), columns, query, where)
 
-        for transformation in self.aggregation.transformations:
+        for transformation in transformations:
             self.engine.apply_transformation(self.tmp_table_name(context), transformation, self.params)
 
 

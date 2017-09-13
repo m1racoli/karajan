@@ -223,17 +223,15 @@ class Aggregation(ModelBase):
     def retrospec(self):
         return self.offset + self.reruns
 
-    def transformation_upstream_columns(self, column):
-        downstream = {column}
-        result = set()
+    def transformation_upstream_columns(self, columns):
+        result = set(columns)
+        transformations = []
         for t in reversed(self.transformations):
-            added = set()
-            for d in downstream:
-                for u in t.columns.get(d, []):
-                    added.add(u)
-            result.update(added)
-            downstream.update(added)
-        return result
+            if t.applies_to(result):
+                transformations.append(t)
+                result.update(t.columns.keys())
+                result.update(t.columns.values())
+        return result, reversed(transformations)
 
 
 class KarajanDAG(DAG):
@@ -274,10 +272,6 @@ class KarajanDAG(DAG):
                     agg_limit.add(self.item_column)
                 limit[ac.aggregation_id] = agg_limit
             agg_limit.add(ac.src_column_name)
-
-            # a column can depend on other columns via transformations
-            for tuc in aggregation.transformation_upstream_columns(ac.src_column_name):
-                agg_limit.add(tuc)
 
         return limit
 
