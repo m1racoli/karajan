@@ -51,7 +51,7 @@ class KarajanBaseOperator(BaseOperator):
         if conf is None:
             return None
         limit = conf.get('limit')
-        return limit and any(not limit.get(name) for name in names)
+        return limit and any(name not in limit for name in names)
 
     @staticmethod
     def limited_columns(context, name, columns):
