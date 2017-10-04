@@ -258,7 +258,9 @@ class KarajanDAG(DAG):
         aggregated_columns = target.aggregated_columns()
         assert target, "not target with ID {} found".format(filter.name)
 
-        for c in filter.columns:
+        columns = filter.columns if filter.columns else aggregated_columns.keys()
+
+        for c in columns:
             ac = aggregated_columns.get(c)
             assert ac, "column {} not found in target {}".format(c, target)
 
