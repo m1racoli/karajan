@@ -1,6 +1,43 @@
 # bit.karajan
 A conductor of aggregations in Apache Airflow
 
+## Integration into Airflow
+
+Initialize the Conductor with `conf` set as the relative path of the configuration.
+Then build the DAGs with a KarajanID as the first argument, an engine and an output reference for the DAGs.
+
+```python
+from karajan.conductor import Conductor
+from karajan.engines import ExasolEngine
+
+engine = ExasolEngine(conn_id='exasol', queue='exasol', tmp_schema='agg_tmp')
+Conductor(conf='agg').build('agg_user_activity', engine=engine, output=globals())
+```
+
+If the context is parameterized - i.e. has multiple items - for each item a DAG with ID `{karajan-id}_{item}` will be created.
+
+## CLI
+
+### run
+
+Run the complete Karajan setup for the previous date:
+```bash
+karajan run {karajan-id}
+```
+Run the complete Karajan setup for a date range:
+```bash
+karajan run -s 2017-01-01 -e 2017-03-31 {karajan-id}
+```
+Run the Karajan setup for specific items:
+```bash
+karajan run -i jj,jji,jja {karajan-id}
+```
+Run the complete Karajan setup limited to a set of target columns:
+```bash
+karajan run -l target[col1,col2] {karajan-id}
+```
+The last command will limit the DAGRun to the target and it's direct upstream aggregations. Everything else will be skipped.
+
 ## Model
 
 ### Context
@@ -129,3 +166,7 @@ type: target
 target: daily_user_activities
 columns: [country]
 ```
+
+### Transformations
+
+TODO
