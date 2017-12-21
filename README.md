@@ -1,4 +1,4 @@
-# bit.karajan
+# Karajan
 A conductor of aggregations in Apache Airflow
 
 ## Integration into Airflow
