@@ -26,11 +26,11 @@ __version__ = '0.4.0'
 setup(
     name='karajan',
     version=__version__,
-    url='https://github.com/wooga/karajan',
+    url='https://github.com/m1racoli/karajan',
     license='',
     packages=['karajan', 'karajan.bin'],
     author='Cedrik Neumann',
-    author_email='cedrik.neumann@outlook.com',
+    author_email='contact@m1racoli.io',
     description='A conductor of aggregations in Apache Airflow',
     scripts=['karajan/bin/karajan'],
     install_requires=[
