@@ -252,7 +252,7 @@ class KarajanFinishOperator(KarajanBaseOperator):
             where = {self.target.timeseries_key: date_range}
             if self.params.get('item'):
                 where[self.params.get('item_column')] = self.params.get('item')
-            self.engine.purge(schema_name, table_name, self.target.aggregated_columns().keys(), where)
+            self.engine.purge(schema_name, table_name, list(self.target.aggregated_columns().keys()), where)
 
         if self.target.has_parameter_columns():
             if self.params.get('item'):

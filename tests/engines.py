@@ -180,7 +180,7 @@ VALUES (tmp.tmp_time_col, tmp.tmp_key_col, tmp.src_val_1, tmp.src_val_2)""")
             'delta': '2h',
         })
         task_id = 'wait_for_tracking_schema_tracking_table'
-        op = self.engine.dependency_operator(task_id, self.build_dags().dags.values()[0], dep)
+        op = self.engine.dependency_operator(task_id, list(self.build_dags().dags.values())[0], dep)
         expected = timedelta(hours=2)
         assert_equal(expected, op.op.delta)
         assert_equal(True, isinstance(op.op, TimeDeltaSensor))
@@ -191,7 +191,7 @@ VALUES (tmp.tmp_time_col, tmp.tmp_key_col, tmp.src_val_1, tmp.src_val_2)""")
             'table': 'tracking_table',
         })
         task_id = 'wait_for_tracking_schema_tracking_table'
-        op = self.engine.dependency_operator(task_id, self.build_dags().dags.values()[0], dep)
+        op = self.engine.dependency_operator(task_id, list(self.build_dags().dags.values())[0], dep)
         expected = "SELECT created_date FROM tracking_schema.tracking_table WHERE CREATED_DATE>'{{ ds }}' LIMIT 1"
         assert_equal(expected, op.op.sql)
         assert_equal(True, isinstance(op.op, SqlSensor))
@@ -199,7 +199,7 @@ VALUES (tmp.tmp_time_col, tmp.tmp_key_col, tmp.src_val_1, tmp.src_val_2)""")
     def test_nothing_dep_op(self):
         dep = NothingDependency()
         task_id = 'wait_for_nothing'
-        op = self.engine.dependency_operator(task_id, self.build_dags().dags.values()[0], dep)
+        op = self.engine.dependency_operator(task_id, list(self.build_dags().dags.values())[0], dep)
         assert_equal(True, isinstance(op.op, DummyOperator))
 
     def test_task_dep_op(self):
@@ -208,7 +208,7 @@ VALUES (tmp.tmp_time_col, tmp.tmp_key_col, tmp.src_val_1, tmp.src_val_2)""")
             'task_id': 'task_id',
         })
         task_id = 'wait_for_dag_id_task_id'
-        op = self.engine.dependency_operator(task_id, self.build_dags().dags.values()[0], dep)
+        op = self.engine.dependency_operator(task_id, list(self.build_dags().dags.values())[0], dep)
         assert_equal('dag_id', op.op.external_dag_id)
         assert_equal('task_id', op.op.external_task_id)
         assert_equal(True, isinstance(op.op, ExternalTaskSensor))

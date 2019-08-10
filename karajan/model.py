@@ -73,7 +73,7 @@ class Context(ModelBase):
             keys.update(self.defaults.keys())
             return keys
         else:
-            return self.defaults.keys()
+            return list(self.defaults.keys())
 
     def params(self, target=None):
         if self.is_parameterized():
@@ -104,7 +104,7 @@ class Target(ModelBase):
              conf.get('aggregated_columns', {}).items()}
         self.items = conf.get('items', [])
         if self.items == '*':
-            self.items = self.context.items.keys()
+            self.items = list(self.context.items.keys())
         self.timeseries_key = conf.get('timeseries_key')
         self.parameter_columns = conf.get('parameter_columns', {})
         super(Target, self).__init__(name)
@@ -126,7 +126,7 @@ class Target(ModelBase):
         if self.timeseries_key:
             self.validate_not_in('timeseries_key', self.key_columns)
         for item_key in self.parameter_columns.values():
-            validate_include(self.context.item_keys(), item_key)
+            validate_include(list(self.context.item_keys()), item_key)
 
         super(Target, self).validate()
 
@@ -279,7 +279,7 @@ class KarajanDAG(DAG):
         aggregated_columns = target.aggregated_columns()
         assert target, "not target with ID {} found".format(filter.name)
 
-        columns = filter.columns if filter.columns else aggregated_columns.keys()
+        columns = filter.columns if filter.columns else list(aggregated_columns.keys())
 
         for c in columns:
             ac = aggregated_columns.get(c)

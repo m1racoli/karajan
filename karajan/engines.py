@@ -328,11 +328,11 @@ FIRST_VALUE({col}) OVER (PARTITION BY {key_cols} ORDER BY DECODE({col}, NULL, NU
             return None
 
         if update_types:
-            key_cols = key_columns.keys()
-            val_cols = value_columns.keys() + [self.col_escape('_%s_UPDATED_AT' % c.upper()) for c in
-                                               value_columns.keys() if
+            key_cols = list(key_columns.keys())
+            val_cols = list(value_columns.keys()) + [self.col_escape('_%s_UPDATED_AT' % c.upper()) for c in
+                                               list(value_columns.keys()) if
                                                update_types[c] in AggregatedColumn.depends_on_past_update_types]
-            all_cols = key_cols + val_cols
+            all_cols = list(key_cols) + val_cols
             select = """SELECT DISTINCT
 {key_cols},
 {update_val_cols}
@@ -351,7 +351,7 @@ SELECT {src_cols} FROM {tmp_schema}.{tmp_table})""".format(
                 tmp_table=tmp_table_name,
                 exists_where=' AND '.join('a.%s = t.%s' % (a, t) for a, t in key_columns.items()),
                 src_cols=', '.join(
-                    key_columns.values() + value_columns.values() + [time_key for c in value_columns.keys() if
+                    list(key_columns.values()) + list(value_columns.values()) + [time_key for c in list(value_columns.keys()) if
                                                                      update_types[
                                                                          c] in AggregatedColumn.depends_on_past_update_types])
             )
@@ -361,14 +361,14 @@ SELECT {src_cols} FROM {tmp_schema}.{tmp_table})""".format(
             in_vals = ', '.join("tmp.%s" % c for c in all_cols)
         else:
             select = "SELECT {src_cols} FROM {tmp_schema}.{tmp_table}".format(
-                src_cols=', '.join(key_columns.values() + value_columns.values()),
+                src_cols=', '.join(list(key_columns.values()) + list(value_columns.values())),
                 tmp_schema=self.tmp_schema,
                 tmp_table=tmp_table_name,
             )
             on_cols = ' AND '.join(["tbl.%s = tmp.%s" % (t, s) for t, s in key_columns.items()])
             set_cols = ', '.join(["tbl.%s = tmp.%s" % (col, src) for col, src in value_columns.items()])
-            in_cols = ', '.join(key_columns.keys() + value_columns.keys())
-            in_vals = ', '.join(["tmp.%s" % c for c in key_columns.values() + value_columns.values()])
+            in_cols = ', '.join(list(key_columns.keys()) + list(value_columns.keys()))
+            in_vals = ', '.join(["tmp.%s" % c for c in list(key_columns.values()) + list(value_columns.values())])
 
         sql = """MERGE INTO {schema}.{table} tbl
 USING ({select}) tmp
@@ -381,7 +381,7 @@ VALUES ({in_vals})""".format(
             schema=schema_name,
             table=table_name,
             select=select,
-            src_cols=', '.join(key_columns.values() + value_columns.values()),
+            src_cols=', '.join(list(key_columns.values()) + list(value_columns.values())),
             tmp_schema=self.tmp_schema,
             tmp_table=tmp_table_name,
             on_cols=on_cols,

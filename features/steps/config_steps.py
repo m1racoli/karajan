@@ -65,7 +65,7 @@ def step_impl(context, model, id):
 def step_impl(context, model, id):
     context_conf = get_context_conf(context)
     conf = get_model_conf(context, model).get(id)
-    conf['items'] = context_conf.get('items', {}).keys()
+    conf['items'] = list(context_conf.get('items', {}).keys())
 
 
 @given(u'the {model} {id} has wildcard items')
