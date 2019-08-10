@@ -64,7 +64,7 @@ def validate_exclude(items, val, msg=None):
         raise KarajanValidationException(msg)
 
 
-class Validatable:
+class Validatable(object):
     def __init__(self):
         pass
 
