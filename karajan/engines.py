@@ -191,7 +191,7 @@ class ExasolEngine(BaseEngine):
 
     @staticmethod
     def db_str(val):
-        if isinstance(val, (str, unicode, date, datetime)):
+        if isinstance(val, (str, date, datetime)):
             return "'%s'" % val
         else:
             return val

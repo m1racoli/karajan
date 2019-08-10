@@ -54,7 +54,7 @@ class Config(object):
         """
 
         :param conf: the conf object to apply jinja2 templating
-        :type conf: dict, list, str, unicode
+        :type conf: dict, list, str
         :param params: the params to use in the rendering. ignored keys will be overwritten
         :type params: dict
         :param replace: instead if rendering, replace {{ k }} with {{ v }} for each k,v in replace.
@@ -71,7 +71,7 @@ class Config(object):
             return {k: cls.render(v, params) for k, v in conf.items()}
         elif isinstance(conf, list):
             return [cls.render(v, params) for v in conf]
-        elif isinstance(conf, (str, unicode)):
+        elif isinstance(conf, str):
             render_params = dict()
             render_params.update(params)
             # render_params.update(cls.template_ignore_mapping)
