@@ -217,9 +217,9 @@ VALUES (tmp.tmp_time_col, tmp.tmp_key_col, tmp.src_val_1, tmp.src_val_2)""")
         exception = None
         try:
             op = self.engine.dependency_operator('', None, None)
-        except StandardError as e:
+        except Exception as e:
             exception = e
-        assert_equal(True, isinstance(exception, StandardError))
+        assert_equal(True, isinstance(exception, Exception))
 
     @parameterized.expand([
         'aggregate_test_aggregation',

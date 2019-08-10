@@ -309,4 +309,4 @@ class TestValidatable(TestCase):
         except KarajanValidationException as e:
             ex = e
         assert isinstance(ex, KarajanValidationException)
-        assert_equal(ex.message, 'Validatable: conf_name must be present')
+        assert_equal(ex.args[0], 'Validatable: conf_name must be present')

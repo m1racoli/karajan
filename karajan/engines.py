@@ -46,7 +46,7 @@ class BaseEngine(object):
         elif isinstance(dep, TaskDependency):
             op = self.task_dependency_operator(task_id, dep)
         else:
-            raise StandardError("Dependency operator for %s not found" % type(dep))
+            raise Exception("Dependency operator for %s not found" % type(dep))
         return KarajanDependencyOperator(op=op, dag=dag)
 
     @staticmethod
