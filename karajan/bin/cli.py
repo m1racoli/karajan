@@ -72,10 +72,10 @@ def yesterday():
 
 def get_dags(args):
     dagbag = DagBag(cli.process_subdir(args.subdir))
-    dags = {id: dag for id, dag in dagbag.dags.iteritems() if isinstance(dag, KarajanDAG)}
+    dags = {id: dag for id, dag in dagbag.dags.items() if isinstance(dag, KarajanDAG)}
     # check weither we want selected KarajanDAGs or all of them
     if hasattr(args, 'karajan_id'):
-        dags = {id: dag for id, dag in dags.iteritems() if dag.karajan_id == args.karajan_id}
+        dags = {id: dag for id, dag in dags.items() if dag.karajan_id == args.karajan_id}
         if not dags:
             raise KarajanException('no DAGs with karajan_id {} found.'.format(args.karajan_id))
         return dags

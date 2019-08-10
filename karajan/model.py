@@ -43,7 +43,7 @@ class ModelBase(Validatable):
 class Context(ModelBase):
     def __init__(self, conf):
         self.items = conf.get('items', {})
-        for k, v in self.items.iteritems():
+        for k, v in self.items.items():
             if not v:
                 self.items[k] = {}
         self.defaults = conf.get('defaults', {})
@@ -53,7 +53,7 @@ class Context(ModelBase):
     def validate(self):
         if self.is_parameterized():
             self.validate_presence('item_column')
-            for k, v in self.items.iteritems():
+            for k, v in self.items.items():
                 validate_exclude(v, 'item')
                 validate_exclude(v, 'item_column')
         else:
@@ -99,9 +99,9 @@ class Target(ModelBase):
         if context.is_parameterized():
             self.key_columns.append(context.item_column)
         self.aggregations = \
-            {agg_id: {cname: AggregatedColumn(agg_id, cname, conf) for cname, conf in agg_columns.iteritems()}
+            {agg_id: {cname: AggregatedColumn(agg_id, cname, conf) for cname, conf in agg_columns.items()}
              for agg_id, agg_columns in
-             conf.get('aggregated_columns', {}).iteritems()}
+             conf.get('aggregated_columns', {}).items()}
         self.items = conf.get('items', [])
         if self.items == '*':
             self.items = self.context.items.keys()
@@ -139,7 +139,7 @@ class Target(ModelBase):
     def aggregated_columns(self, aggregation_id=None):
         if aggregation_id:
             return self.aggregations.get(aggregation_id)
-        return {n: ac for v in self.aggregations.values() for n, ac in v.iteritems()}
+        return {n: ac for v in self.aggregations.values() for n, ac in v.items()}
 
     def is_timeseries(self):
         return self.timeseries_key is not None
@@ -169,7 +169,7 @@ class Target(ModelBase):
                     return True
             return False
 
-        return {k: v for k, v in self.aggregations.iteritems() if cols_in(v)}
+        return {k: v for k, v in self.aggregations.items() if cols_in(v)}
 
 
 class AggregatedColumn(ModelBase):

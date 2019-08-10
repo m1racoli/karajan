@@ -216,7 +216,7 @@ class ExasolEngine(BaseEngine):
             else:
                 return "%s = %s" % (col, ExasolEngine.db_str(val))
 
-        return "WHERE %s" % (' AND '.join([clause(c, v) for c, v in d.iteritems()]))
+        return "WHERE %s" % (' AND '.join([clause(c, v) for c, v in d.items()]))
 
     def _execute(self, sql):
         logging.info('Executing: ' + str(sql))
@@ -279,13 +279,13 @@ class ExasolEngine(BaseEngine):
                 schema=schema_name.upper(),
                 col_defs=', '.join(
                     "%s %s DEFAULT NULL" % (self.col_escape(c.upper()), self._evolve_column(t)) for c, t in
-                    columns.iteritems())
+                    columns.items())
             )
             self._execute(ddl)
         else:
             # table exists
             ddl = []
-            for column, column_type in columns.iteritems():
+            for column, column_type in columns.items():
                 modify = 'MODIFY' if column in result else 'ADD'
                 target_type = self._evolve_column(column_type, result.get(column))
                 if target_type:
@@ -349,7 +349,7 @@ SELECT {src_cols} FROM {tmp_schema}.{tmp_table})""".format(
                 table=table_name,
                 tmp_schema=self.tmp_schema,
                 tmp_table=tmp_table_name,
-                exists_where=' AND '.join('a.%s = t.%s' % (a, t) for a, t in key_columns.iteritems()),
+                exists_where=' AND '.join('a.%s = t.%s' % (a, t) for a, t in key_columns.items()),
                 src_cols=', '.join(
                     key_columns.values() + value_columns.values() + [time_key for c in value_columns.keys() if
                                                                      update_types[
@@ -365,8 +365,8 @@ SELECT {src_cols} FROM {tmp_schema}.{tmp_table})""".format(
                 tmp_schema=self.tmp_schema,
                 tmp_table=tmp_table_name,
             )
-            on_cols = ' AND '.join(["tbl.%s = tmp.%s" % (t, s) for t, s in key_columns.iteritems()])
-            set_cols = ', '.join(["tbl.%s = tmp.%s" % (col, src) for col, src in value_columns.iteritems()])
+            on_cols = ' AND '.join(["tbl.%s = tmp.%s" % (t, s) for t, s in key_columns.items()])
+            set_cols = ', '.join(["tbl.%s = tmp.%s" % (col, src) for col, src in value_columns.items()])
             in_cols = ', '.join(key_columns.keys() + value_columns.keys())
             in_vals = ', '.join(["tmp.%s" % c for c in key_columns.values() + value_columns.values()])
 
@@ -402,7 +402,7 @@ VALUES ({in_vals})""".format(
 
     def parameters(self, schema_name, table_name, parameter_columns, where):
         sql = []
-        for col, val in parameter_columns.iteritems():
+        for col, val in parameter_columns.items():
             sql.append("UPDATE {schema}.{table} SET {col} = {val} {where} AND ({col} IS NULL OR {col} != {val})".format(
                 schema=schema_name,
                 table=table_name,

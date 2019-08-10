@@ -65,10 +65,10 @@ class Config(object):
         if replace is None:
             replace = {}
         else:
-            replace = {k: '{{ %s }}' % v for k, v in replace.iteritems()}
+            replace = {k: '{{ %s }}' % v for k, v in replace.items()}
 
         if isinstance(conf, dict):
-            return {k: cls.render(v, params) for k, v in conf.iteritems()}
+            return {k: cls.render(v, params) for k, v in conf.items()}
         elif isinstance(conf, list):
             return [cls.render(v, params) for v in conf]
         elif isinstance(conf, (str, unicode)):

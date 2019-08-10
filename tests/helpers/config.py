@@ -89,7 +89,7 @@ class ConfigHelper(dict):
         self['context']['items'] = items
         self['context']['item_column'] = 'item_column'
         if with_targets:
-            for tk, tv in self['targets'].iteritems():
+            for tk, tv in self['targets'].items():
                 tv['items'] = '*'
         return self
 
@@ -105,7 +105,7 @@ class ConfigHelper(dict):
             'bool': True,
         }
         if self['context'].get('items'):
-            for item, p in self['context'].get('items').iteritems():
+            for item, p in self['context'].get('items').items():
                 p.update(params)
         else:
             self['context']['defaults'].update(params)

@@ -62,7 +62,7 @@ class DeltaDependency(BaseDependency):
         parts = self.__timedelta_regex.match(s)
         parts = parts.groupdict()
         time_params = {}
-        for (name, param) in parts.iteritems():
+        for (name, param) in parts.items():
             if param:
                 time_params[name] = int(param)
         return timedelta(**time_params)

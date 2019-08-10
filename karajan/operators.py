@@ -87,7 +87,7 @@ class KarajanBaseOperator(BaseOperator):
             return columns
 
         if isinstance(columns, dict):
-            return {c: v for c,v in columns.iteritems() if c in column_limit}
+            return {c: v for c,v in columns.items() if c in column_limit}
 
         return [c for c in columns if c in column_limit]
 
@@ -259,5 +259,5 @@ class KarajanFinishOperator(KarajanBaseOperator):
                 where = {self.params.get('item_column'): self.params.get('item')}
             else:
                 where = None
-            parameter_columns = {c: self.params[p] for c, p in self.target.parameter_columns.iteritems()}
+            parameter_columns = {c: self.params[p] for c, p in self.target.parameter_columns.items()}
             self.engine.parameters(schema_name, table_name, parameter_columns, where)

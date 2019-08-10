@@ -35,8 +35,8 @@ class Conductor(object):
         """
         self.conf = Config.load(conf)
         self.context = Context(self.conf['context'])
-        self.targets = {n: Target(n, c, self.context) for n, c in self.conf['targets'].iteritems()}
-        self.aggregations = {n: Aggregation(n, c, self.context) for n, c in self.conf['aggregations'].iteritems()}
+        self.targets = {n: Target(n, c, self.context) for n, c in self.conf['targets'].items()}
+        self.aggregations = {n: Aggregation(n, c, self.context) for n, c in self.conf['aggregations'].items()}
         self._validate()
 
     def _validate(self):
@@ -55,7 +55,7 @@ class Conductor(object):
 
         dags = {}
 
-        for item, params in self.context.params().iteritems():
+        for item, params in self.context.params().items():
             item_start_date = min(t.start_date for t in self.targets.values() if t.has_item(item))
             targets = {t.name: t for t in self.targets.values() if t.has_item(item)}
             aggregations = {a: self.aggregations[a] for a in {a for t in targets.values() for a in t.aggregations}}
@@ -143,7 +143,7 @@ class Conductor(object):
                 merge_operator.set_downstream(clean_operator)
                 merge_operator.set_downstream(finish_operators[target.name])
 
-        for aggregation_id, dependencies in target_dependencies.iteritems():
+        for aggregation_id, dependencies in target_dependencies.items():
             aggregation_operator = aggregation_operators[aggregation_id]
             for target_dependency in dependencies:
                 target = dag.targets[target_dependency.target]
