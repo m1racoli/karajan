@@ -1,4 +1,7 @@
 # Karajan
+
+[![Build Status](https://travis-ci.com/m1racoli/karajan.svg?branch=master)](https://travis-ci.com/m1racoli/karajan)
+
 A conductor of aggregations in Apache Airflow
 
 ## Integration into Airflow
