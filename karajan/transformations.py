@@ -23,7 +23,7 @@ from karajan.config import Config
 from karajan.validations import Validatable
 
 
-class BaseTransformation(object, Validatable):
+class BaseTransformation(Validatable):
     def __init__(self, conf):
         self.columns = conf.get('columns')
         self.validate()

@@ -30,7 +30,7 @@ from karajan.exceptions import KarajanException
 from .validations import *
 
 
-class ModelBase(object, Validatable):
+class ModelBase(Validatable):
     def __init__(self, name):
         self.name = name
         self.validate()
