@@ -36,7 +36,7 @@ def before_all(context):
 def before_tag(context, tag):
     if tag == 'db':
         # make sure the test db is clean
-        db_utils.resetdb()
+        db_utils.resetdb(True)
 
 
 def after_all(context):
