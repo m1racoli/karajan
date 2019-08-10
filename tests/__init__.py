@@ -19,6 +19,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from validations import *
-from engines import *
-from conductor import *
+from .validations import *
+from .engines import *
+from .conductor import *

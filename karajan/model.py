@@ -27,7 +27,7 @@ from airflow.models import DAG
 
 from karajan import transformations as tf
 from karajan.exceptions import KarajanException
-from validations import *
+from .validations import *
 
 
 class ModelBase(object, Validatable):

@@ -19,10 +19,10 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from conductor import *
-from config import *
-from engines import *
-from model import *
-from validations import *
-from dependencies import *
-from transformations import *
+from .conductor import *
+from .config import *
+from .engines import *
+from .model import *
+from .validations import *
+from .dependencies import *
+from .transformations import *
