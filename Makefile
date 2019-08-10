@@ -42,9 +42,11 @@ clean-test: ## remove test and coverage artifacts
 install: clean
 	pip install -e .[dev]
 
-release: clean
-	python setup.py sdist upload
-	python setup.py bdist_wheel upload
+sdist: clean
+	python setup.py sdist
+
+upload: sdist
+	twine upload dist/*
 
 test: nosetests behave
 

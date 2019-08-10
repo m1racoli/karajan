@@ -21,9 +21,11 @@
 
 from setuptools import setup
 
+__version__ = '0.4.0'
+
 setup(
     name='karajan',
-    version='0.4.0',
+    version=__version__,
     url='https://github.com/wooga/karajan',
     license='',
     packages=['karajan', 'karajan.bin'],
@@ -44,6 +46,9 @@ setup(
             'coverage',
             'parameterized',
             'mock',
+            'pylint',
+            'autopep8',
+            'python-semantic-release',
         ],
     },
 )
