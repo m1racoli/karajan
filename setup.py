@@ -48,7 +48,9 @@ setup(
             'mock',
             'pylint',
             'autopep8',
-            'python-semantic-release',
         ],
+        'publish': [
+            'python-semantic-release',
+        ]
     },
 )
