@@ -21,12 +21,12 @@
 
 from setuptools import setup
 
-__version__ = '0.4.0'
+__version__ = '0.4.1'
 
 setup(
     name='karajan',
     version=__version__,
-    url='https://github.com/wooga/karajan',
+    url='https://github.com/m1racoli/karajan',
     license='',
     packages=['karajan', 'karajan.bin'],
     author='Cedrik Neumann',
